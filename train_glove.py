@@ -41,7 +41,7 @@ def read(file_path):
 print('Read Corpus')
 
 data_dir = "C:\\Users\\EnzoT\\Documents\\datasets"
-dataset = "lyrics"
+dataset = "BlogAuthorshipCorpus"
 authors = sorted([a for a in os.listdir(os.path.join(data_dir, dataset)) if os.path.isdir(os.path.join(data_dir, dataset, a))])
 documents = []
 doc2aut = {}
@@ -124,8 +124,11 @@ for i,doc in tqdm(enumerate(tokens)):
     tt = np.array(tt)
     doc_emb[i,:tt.shape[0],:] = tt
 
-with open(os.path.join('data', dataset, dataset+'_embds.glove'), 'wb') as f1:
-    pickle.dump(dict(zip(id_docs,doc_emb)), f1)
+np.save(os.path.join('data', dataset, dataset+'_embds.glove'), doc_emb)
+np.save(os.path.join('data', dataset, dataset+'_masks.glove'), doc_mask)
 
-with open(os.path.join('data',dataset, dataset+'_masks.glove'), 'wb') as f1:
-    pickle.dump(dict(zip(id_docs,doc_mask)), f1)
+# with open(os.path.join('data', dataset, dataset+'_embds.glove'), 'wb') as f1:
+#     pickle.dump(dict(zip(id_docs,doc_emb)), f1)
+
+# with open(os.path.join('data',dataset, dataset+'_masks.glove'), 'wb') as f1:
+#     pickle.dump(dict(zip(id_docs,doc_mask)), f1)

@@ -27,8 +27,8 @@ class MLP(layers.Layer):
 
     def call(self, x):
         
-        layer_1 = tf.add(tf.matmul(x, self.h1), self.b1)
-        layer_2 = tf.add(tf.matmul(layer_1, self.h2), self.b2)
+        layer_1 = tf.math.tanh(tf.add(tf.matmul(x, self.h1), self.b1))
+        layer_2 = tf.math.tanh(tf.add(tf.matmul(layer_1, self.h2), self.b2))
         out_layer = tf.matmul(layer_2, self.out) + self.bout
 
         return out_layer

@@ -11,6 +11,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import scipy.sparse as sp
 from scipy.spatial import distance_matrix
+import pandas as pd
 import numpy as np
 import tensorflow as tf
 
@@ -26,27 +27,13 @@ from sklearn.metrics import coverage_error,label_ranking_average_precision_score
 
 from encoders import DAN
 
-from src.corpus import *
-from src.utils import *
-
 ############# Data ################
-dataset = "lyrics"
+dataset = "gutenberg"
 method = "DAN-VADE-GLOVE"
-
-import pickle
-with open(os.path.join("data", dataset, dataset + "_embds.glove"), 'rb') as ff:
-    D = pickle.load(ff)
-
-D = np.array(list(D.values()), dtype=np.float32)
-
-with open(os.path.join("data", dataset, dataset + "_masks.glove"), 'rb') as ff:
-    D_mask = pickle.load(ff)
-
-D_mask = np.array(list(D_mask.values()), dtype=np.float32)
 
 data_dir = "C:\\Users\\EnzoT\\Documents\\datasets"
 res_dir = "C:\\Users\\EnzoT\\Documents\\results"
-dataset = "lyrics"
+
 authors = sorted([a for a in os.listdir(os.path.join(data_dir, dataset)) if os.path.isdir(os.path.join(data_dir, dataset, a))])
 documents = []
 doc2aut = {}
@@ -115,6 +102,18 @@ features_train = np.float32(np.array(features_train))
 print("%d documents and %d authors\n%d data pairs for training" % (nd,na, len(data_pairs)))
 ########################################################################################################################################
 
+D = np.load(os.path.join("data", dataset, dataset + "_embds.glove.npy")).astype(np.float32)
+D_mask = np.load(os.path.join("data", dataset, dataset + "_masks.glove.npy")).astype(np.float32)
+# with open(os.path.join("data", dataset, dataset + "_embds.glove"), 'rb') as ff:
+#     D = pickle.load(ff)
+
+# D = np.array(list(D.values()), dtype=np.float32)
+
+# with open(os.path.join("data", dataset, dataset + "_masks.glove"), 'rb') as ff:
+#     D_mask = pickle.load(ff)
+
+# D_mask = np.array(list(D_mask.values()), dtype=np.float32)
+
 r = 300
 doc_r = r
 max_l = int(D.shape[1])
@@ -127,7 +126,7 @@ batch_size = 64
 train_data = tf.data.Dataset.from_tensor_slices((data_pairs,features_train,labels)).shuffle(len(labels)).batch(batch_size)
 
 class VADER(tf.keras.Model):
-    def __init__(self,nba,r,doc_r,pl, beta = 1e-12,L=1):
+    def __init__(self,nba,r,doc_r,pl, beta = 1e-12,L=5):
       
         super(VADER, self).__init__()
       
@@ -219,13 +218,6 @@ def compute_loss(model, D, D_mask, pairs, y, yf, training=True):
 
     for draw in range(model.L):
 
-        ## KL divergence approximation
-        # KL_loss = 1/2 * (-tf.math.log(tf.math.reduce_prod(doc_mean)) - doc_mean.shape[1] +
-        #     tf.math.reduce_sum(doc_mean) + tf.math.multiply(yf - doc_mean, yf - doc_mean))
-
-        # Classic and basic bread and butter L2 loss
-        # feature_loss = tf.nn.l2_loss(yf - doc_mean) + model.a_features * 0 + model.b_features * 0
-
         ## Bring closer document embedding and stylistic features
         probs = model.logistic_classifier_features(yf, doc_mean, doc_var, apply_sigmoid=False)
 
@@ -276,9 +268,9 @@ def compute_apply_gradients(model, D, D_mask, pairs, y, yf, optimizer):
 print("Building the model")
 
 r = doc_r
-epochs = 30
-optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
-model = VADER(na,r,doc_r,max_l, beta=1e-12, L=1) 
+epochs = 90
+optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
+model = VADER(na,r,doc_r,max_l, beta=1e-12, L=5) 
 
 result = []
 pairs, yf, y =next(iter(train_data))
