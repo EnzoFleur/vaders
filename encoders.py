@@ -5,31 +5,43 @@ from tensorflow.keras.initializers import Constant
 
 import tensorflow_hub as hub
 
-USE_layer = hub.KerasLayer("C:\\Users\\EnzoT\\Documents\\code\\universal-sentence-encoder\\", trainable=True)
+
+text_input = tf.keras.layers.Input(shape=(), dtype=tf.string)
+BERT_preprocess_path = "C:\\Users\\EnzoT\\Documents\\code\\bert_preprocess\\"
+BERT_preprocessor = hub.load(BERT_preprocess_path)
+
+tokenize = hub.KerasLayer(BERT_preprocessor.tokenize)
+tokenized_inputs = [tokenize(doc) for doc in documents[:3]]
+
+BERT_path = "C:\\Users\\EnzoT\\Documents\\code\\bert\\"
+BERT_layer = hub.KerasLayer(BERT_path, trainable = True)
+
+USE_path = "C:\\Users\\EnzoT\\Documents\\code\\universal-sentence-encoder\\"
+USE_layer = hub.KerasLayer(USE_path, trainable=True)
 
 class MLP(layers.Layer):
-    def __init__(self, input_size, output_size, n_hidden_1=256, n_hidden_2=256):
+    def __init__(self, input_size, output_size, L2=1e-5):
+        super(MLP, self).__init__()
+
         # Network Parameters
-        self.n_hidden_1 = n_hidden_1 # 1st layer number of neurons
-        self.n_hidden_2 = n_hidden_2 # 2nd layer number of neurons
         self.input_size = input_size # MNIST data input (img shape: 28*28)
         self.output_size = output_size # MNIST total classes (0-9 digits)
 
-        # Store layers weight & bias
-        self.h1 = tf.Variable(tf.random_normal([self.input_size, self.n_hidden_1]), trainable=True)
-        self.h2 =  tf.Variable(tf.random_normal([self.n_hidden_1, self.n_hidden_2]), trainable=True)
-        self.out = tf.Variable(tf.random_normal([self.n_hidden_2, self.output_size]), trainable=True)
+        mlp_layers = [
+                layers.Dropout(0.2),
+                layers.Dense(self.input_size, kernel_regularizer=tf.keras.regularizers.l2(L2)),
+                layers.BatchNormalization(),
+                layers.Activation('tanh'),
+                layers.Dropout(0.2),
+                layers.Dense(self.output_size, kernel_regularizer=tf.keras.regularizers.l2(L2)),
+                layers.BatchNormalization(),   
+            ]
 
-        self.b1 = tf.Variable(tf.random_normal([n_hidden_1]), trainable=True)
-        self.b2 = tf.Variable(tf.random_normal([n_hidden_2]), trainable=True)
-        self.bout = tf.Variable(tf.random_normal([self.output_size]), trainable=True)
+        self.encoder = tf.keras.Sequential(mlp_layers)
 
-
-    def call(self, x):
+    def call(self, x, training=None):
         
-        layer_1 = tf.math.tanh(tf.add(tf.matmul(x, self.h1), self.b1))
-        layer_2 = tf.math.tanh(tf.add(tf.matmul(layer_1, self.h2), self.b2))
-        out_layer = tf.matmul(layer_2, self.out) + self.bout
+        out_layer = self.encoder(x)
 
         return out_layer
 
@@ -49,7 +61,7 @@ class DAN(layers.Layer):
 
             encoder_layers.extend(
                 [
-                    layers.Dense(n_hidden_units, kernel_regularizer=tf.keras.regularizers.l2(L2)),
+                    layers.Dense(input_dim, kernel_regularizer=tf.keras.regularizers.l2(L2)),
                     layers.BatchNormalization(),
                     layers.LeakyReLU(alpha=0.3),
                     layers.Dropout(dropout_prob)

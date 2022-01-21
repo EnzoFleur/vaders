@@ -268,8 +268,8 @@ def compute_apply_gradients(model, D, D_mask, pairs, y, yf, optimizer):
 print("Building the model")
 
 r = doc_r
-epochs = 90
-optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
+epochs = 500
+optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
 model = VADER(na,r,doc_r,max_l, beta=1e-12, L=5) 
 
 result = []
@@ -360,8 +360,8 @@ output = open("coverage_"+dataset+".txt", "a+")
 output.write(method+" & "+str(round(ce,2)) + " & "+ str(round(lr,2)) + "\\\ \n")
 output.close()
 
-np.save("aut_embds_b0_vanilla.npy", aut_emb)
-np.save("doc_embds_b0_vanilla.npy", doc_emb)
+np.save("aut_embds_b0_gutenberg_vanilla.npy", aut_emb)
+np.save("doc_embds_b0_gutenberg_vanilla.npy", doc_emb)
 
 
 ################################################### Style Eval ##############################################
