@@ -1,17 +1,48 @@
 import tensorflow as tf
+import tensorflow_text as text
 
 from tensorflow.keras import layers,Model
 from tensorflow.keras.initializers import Constant
 
 import tensorflow_hub as hub
 
+def make_bert_preprocess_model(sentence_features, tfhub_handle_preprocess, seq_length=512):
+  """Returns Model mapping string features to BERT inputs.
 
-text_input = tf.keras.layers.Input(shape=(), dtype=tf.string)
+  Args:
+    sentence_features: a list with the names of string-valued features.
+    seq_length: an integer that defines the sequence length of BERT inputs.
+
+  Returns:
+    A Keras Model that can be called on a list or dict of string Tensors
+    (with the order or names, resp., given by sentence_features) and
+    returns a dict of tensors for input to BERT.
+  """
+
+  input_segments = [
+      tf.keras.layers.Input(shape=(), dtype=tf.string, name=ft)
+      for ft in sentence_features]
+
+  # Tokenize the text to word pieces.
+  bert_preprocess = hub.load(tfhub_handle_preprocess)
+  tokenizer = hub.KerasLayer(bert_preprocess.tokenize, name='tokenizer')
+  segments = [tokenizer(s) for s in input_segments]
+
+  # Optional: Trim segments in a smart way to fit seq_length.
+  # Simple cases (like this example) can skip this step and let
+  # the next step apply a default truncation to approximately equal lengths.
+  truncated_segments = segments
+
+  # Pack inputs. The details (start/end token ids, dict of output tensors)
+  # are model-dependent, so this gets loaded from the SavedModel.
+  packer = hub.KerasLayer(bert_preprocess.bert_pack_inputs,
+                          arguments=dict(seq_length=seq_length),
+                          name='packer')
+  model_inputs = packer(truncated_segments)
+  return tf.keras.Model(input_segments, model_inputs)
+
 BERT_preprocess_path = "C:\\Users\\EnzoT\\Documents\\code\\bert_preprocess\\"
-BERT_preprocessor = hub.load(BERT_preprocess_path)
-
-tokenize = hub.KerasLayer(BERT_preprocessor.tokenize)
-tokenized_inputs = [tokenize(doc) for doc in documents[:3]]
+BERT_preprocess = make_bert_preprocess_model(['input1, input2'], BERT_preprocess_path)
 
 BERT_path = "C:\\Users\\EnzoT\\Documents\\code\\bert\\"
 BERT_layer = hub.KerasLayer(BERT_path, trainable = True)
