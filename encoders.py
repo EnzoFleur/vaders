@@ -120,6 +120,126 @@ class DAN(layers.Layer):
 
         return outputs
 
+class TypeGraphConvolution(layers.Layer):
+    def __init__(self,in_features, out_features, bias=True):
+
+        super(TypeGraphConvolution, self).__init__()
+
+        self.in_features = in_features 
+        self.out_features = out_features
+
+        self.W = tf.Variable(tf.random.normal([self.in_features, self.out_features]), trainable=True)
+        if bias:
+            self.bias = tf.Variable(tf.random.normal([self.out_features]), trainable=True)
+        else:
+            self.bias = None
+
+    def call(self, text, adj, dep_embed):
+
+        batch_size, max_len, feat_dim = text.shape
+        val_us = tf.expand_dims(text, axis=2)
+        val_us = tf.repeat(val_us, max_len, axis=2)
+
+        val_sum = val_us + dep_embed
+
+        adj_us = tf.expand_dims(adj, axis=-1)
+        adj_us = tf.repeat(adj_us, feat_dim, axis=-1)
+        hidden = tf.linalg.matmul(val_sum, self.W)
+        output = tf.transpose(hidden, perm=[0,2,1,3]) * adj_us
+
+        output = tf.math.reduce_sum(output, axis=2)
+
+        if self.bias is not None:
+            return output + self.bias
+        else:
+            return output
+
+def switch_layer(inputs):
+    
+    inp, emb = inputs
+    zeros = tf.zeros_like(inp)
+    ones = tf.ones_like(inp)
+    
+    inp = tf.keras.backend.switch(inp > 0, ones, zeros)
+    inp = tf.expand_dims(inp, -1)
+    
+    return inp * emb
+
+class AsaTgcn(layers.Layer):
+    def __init__(self,r,hidden_size, layer_number=3, num_types=47):
+
+        super(AsaTgcn, self).__init__()
+    
+        self.r = r
+        self.hidden_size = hidden_size
+        self.layer_number = layer_number
+        self.num_types = num_types
+
+        self.TGCNLayers = [TypeGraphConvolution(hidden_size, hidden_size)
+                                                for _ in range(self.layer_number)]
+
+        self.batchnorm = layers.BatchNormalization()
+
+        self.fc_single = layers.Dense(self.r, activation=None)
+        self.dropout = layers.Dropout(rate=0.1)
+        self.ensemble_linear = tf.Variable(tf.ones([3]), trainable=True)
+
+        self.ensemble = tf.Variable(tf.random.normal((self.r, self.r)), trainable=True)
+        self.dep_embedding = layers.Embedding(self.num_types, hidden_size, name="dep_embedding", mask_zero=True)
+        self.switch = layers.Lambda(switch_layer)
+
+    def get_attention(self, val_out, dep_embed, adj):
+
+        batch_size, max_len, feat_dim = val_out.shape
+        val_us = tf.expand_dims(val_out, axis=2)
+        val_us = tf.repeat(val_us, [max_len], axis=2)
+        val_cat = tf.concat([val_us, dep_embed], axis=-1)
+        atten_expand = val_cat * tf.transpose(val_cat, perm=[0, 2, 1, 3])
+
+        attention_score = tf.math.reduce_sum(atten_expand, axis=-1)
+        attention_score = attention_score / np.power(feat_dim, 0.5)
+        attention_score = tf.math.softmax(attention_score)
+
+        attention_score = tf.math.multiply(attention_score, adj)
+        
+        return attention_score
+
+    def get_average(self, aspect_indices, x):
+        aspect_indices_us = tf.expand_dims(aspect_indices, 2)
+        x_mask = x * aspect_indices_us
+        aspect_len = tf.math.reduce_sum(tf.cast((aspect_indices_us != 0), tf.float32), axis=1)
+        x_sum = tf.math.reduce_sum(x_mask, axis=1)
+        x_av = tf.math.divide(x_sum, aspect_len + 1e-10)
+
+        return x_av
+
+    def call(self, text, input_mask, dep_adj_matrix, dep_value_matrix):
+
+        dep_embed = self.dep_embedding(dep_value_matrix)
+        dep_embed = self.switch([dep_value_matrix, dep_embed])
+
+        batch_size, max_len, feat_dim = text.shape
+
+        seq_out = self.batchnorm(text)
+        seq_out = self.dropout(seq_out)
+        attention_score_for_output = []
+        tgcn_layers_output = []
+        
+        for tgcn in self.TGCNLayers:
+            attention_score = self.get_attention(seq_out, dep_embed, dep_adj_matrix)
+            attention_score_for_output.append(attention_score)
+            seq_out = tf.nn.relu(tgcn(seq_out, attention_score, dep_embed))
+            tgcn_layers_output.append(seq_out)
+
+        tgcn_layers_output_pool = [self.get_average(input_mask, x_out) for x_out in tgcn_layers_output]
+
+        x_pool = tf.stack(tgcn_layers_output_pool, axis=-1)
+        ensemble_out = tf.math.multiply(x_pool, tf.nn.softmax(self.ensemble_linear, axis=0))
+        ensemble_out = tf.math.reduce_sum(ensemble_out, axis=-1)
+        ensemble_out = self.dropout(ensemble_out)
+        output = self.fc_single(ensemble_out)   
+
+        return output
 
 class VADER(tf.keras.Model):
     def __init__(self,nba,r,doc_r,pl, encoder, beta = 1e-12,L=1):
@@ -148,7 +268,9 @@ class VADER(tf.keras.Model):
             self.doc_mean = MLP(512, r) 
             self.doc_var =  MLP(512, r)
         elif encoder == "GNN":
-            pass
+            self.doc_encoder = AsaTgcn(self.r, hidden_size=512)
+            self.doc_mean = MLP(self.r, self.r)
+            self.doc_var = MLP(self.r, self.r)
         elif encoder == "BERT":
             self.doc_encoder = BERT_layer
             self.doc_mean = DAN(768, self.r)
@@ -198,20 +320,31 @@ class VADER(tf.keras.Model):
     def encode_doc(self,doc_tok,doc_mask, training=True):
 
         if self.encoder == "DAN":
-            doc_mean = self.doc_mean(doc_tok, doc_mask, training=training)
-            doc_var = self.doc_var(doc_tok, doc_mask, training=training)
+            dmean = self.doc_mean(doc_tok, doc_mask, training=training)
+            dvar = self.doc_var(doc_tok, doc_mask, training=training)
         elif self.encoder == "USE":
             doc_emb = self.doc_encoder(doc_tok, training=training)
-            doc_mean = self.doc_mean(doc_emb, training=training)
-            doc_var = self.doc_var(doc_emb, training=training)
+            dmean = self.doc_mean(doc_emb, training=training)
+            dvar = self.doc_var(doc_emb, training=training)
         elif self.encoder == "BERT":
             doc_tok = BERT_preprocess(doc_tok)
             doc_mask = tf.cast(doc_tok['input_mask'], dtype=tf.float32)
             doc_emb = self.doc_encoder(doc_tok, training=training)["sequence_output"]
-            doc_mean = self.doc_mean(doc_emb, doc_mask, training=training)
-            doc_var = self.doc_var(doc_emb, doc_mask, training=training)
+            dmean = self.doc_mean(doc_emb, doc_mask, training=training)
+            dvar = self.doc_var(doc_emb, doc_mask, training=training)
+        elif self.encoder == "GNN":
+            batch_size, _, seq_len, encode_size = doc_tok.shape
 
-        return doc_mean,doc_var
+            doc_mask = tf.ones((batch_size, seq_len))
+            text = doc_tok[:,0,:,:]
+            dep_value_matrix = doc_tok[:,1,:,256:512]
+            dep_adj_matrix = doc_tok[:,1,:,:256]
+
+            doc_emb = self.doc_encoder(text, doc_mask, dep_adj_matrix, dep_value_matrix)
+            dmean = self.doc_mean(doc_emb, training=training)
+            dvar = self.doc_var(doc_emb, training=training)
+
+        return dmean,dvar
 
 def compute_loss(model, documents, pairs, y, yf, training=True):
     
@@ -222,7 +355,10 @@ def compute_loss(model, documents, pairs, y, yf, training=True):
 
     i,j = tf.split(pairs, 2, 1)
 
-    doc_emb = documents[i][:,0]
+    if model.encoder == "GNN":
+        doc_emb = documents[tf.squeeze(i, axis=1),:,:,:]
+    else:
+        doc_emb = documents[i][:,0]
     doc_mask = None
 
     mean_aut = tf.squeeze(model.mean_author(j))
@@ -236,6 +372,9 @@ def compute_loss(model, documents, pairs, y, yf, training=True):
     author_loss = 0
 
     for draw in range(model.L):
+
+        # Classic and basic bread and butter L2 loss
+        feature_loss += 10*tf.reduce_sum(tf.sqrt(tf.nn.l2_loss(model.reparameterize(doc_mean, doc_var)-yf)))
 
         ## Bring closer document embedding and stylistic features
         probs = model.logistic_classifier_features(yf, doc_mean, doc_var, apply_sigmoid=False)
@@ -282,10 +421,43 @@ def compute_apply_gradients(model, documents, pairs, y, yf, optimizer):
     
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
-# tt_DAN = DAN(300, 300)
-# tt_D = tf.convert_to_tensor(D[:5,:3,:4], dtype=np.float32)
-# tt_Dmask = tf.convert_to_tensor(D_mask[:5,:3], dtype=np.float32)
 
-# tf.random.set_seed(12)
-# tt_train=tt_DAN(tt_D, tt_Dmask, training=True)
-# tt_eval = tt_DAN(tt_D, tt_Dmask, training=True)
+
+
+    batch_size, max_len, feat_dim = val_out.shape
+    val_us = tf.expand_dims(val_out, axis=2)
+    val_us = tf.repeat(val_us, [max_len], axis=2)
+    val_cat = tf.concat([val_us, dep_embed], axis=-1)
+    atten_expand = val_cat * tf.transpose(val_cat, perm=[0, 2, 1, 3])
+
+    attention_score = tf.math.reduce_sum(atten_expand, axis=-1)
+    attention_score = attention_score / np.power(feat_dim, 0.5)
+
+    attention_score = tf.math.softmax(attention_score)
+    attention_score = tf.math.multiply()
+
+    exp_attention_score = tf.math.exp(attention_score)
+    exp_attention_score = tf.math.multiply(exp_attention_score, adj)
+    sum_attention_score = tf.repeat(tf.expand_dims(tf.math.reduce_sum(exp_attention_score, axis=-1), axis=-1), max_len, axis=-1)
+
+    attention_score = tf.math.divide(exp_attention_score, sum_attention_score + 1e-10)
+
+
+
+    dep_embed = tt_model.dep_embedding(dep_value_matrix)
+    dep_embed = tt_model.switch([dep_value_matrix, dep_embed])
+
+    batch_size, max_len, feat_dim = text.shape
+
+    seq_out = tt_model.batchnorm(seq_out)
+    seq_out = tt_model.dropout(text)
+    attention_score_for_output = []
+    tgcn_layers_output = []
+    
+    for tgcn in tt_model.TGCNLayers:
+        attention_score = tt_model.get_attention(seq_out, dep_embed, dep_adj_matrix)
+        attention_score_for_output.append(attention_score)
+        seq_out = tf.nn.relu(tgcn(seq_out, attention_score, dep_embed))
+        tgcn_layers_output.append(seq_out)
+
+    tgcn_layers_output_pool = [self.get_average(input_mask, x_out) for x_out in tgcn_layers_output]

@@ -6,7 +6,6 @@ import math
 import os
 import re
 import json
-from torch import binary_cross_entropy_with_logits
 from tqdm import tqdm
 import argparse
 
@@ -27,7 +26,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import coverage_error,label_ranking_average_precision_score
 
-from encoders import DAN, MLP, USE_layer, BERT_layer, BERT_preprocess, VADER, compute_apply_gradients, compute_loss
+from encoders import VADER, compute_apply_gradients, compute_loss
 from regressor import style_embedding_evaluation
 
 ############# Text Reader ###############
@@ -62,33 +61,51 @@ if __name__ == "__main__":
     encoder = args.encoder
 
     ############# Data ################
-    dataset = "lyrics"
-    method = "%s_%s_%0.6f" % (encoder, dataset, beta)
-    method = "DAN-VADE-GLOVE"
+    dataset = "gutenberg"
 
-    encoder="BERT"
-
-    data_dir = "C:\\Users\\EnzoT\\Documents\\datasets"
+    encoder="GNN"
+    data_dir = "C:\\Users\\EnzoT\\Documents\\datasets\\gutenberg"
     res_dir = "C:\\Users\\EnzoT\\Documents\\results"
-    dataset = "lyrics"
-    authors = sorted([a for a in os.listdir(os.path.join(data_dir, dataset)) if os.path.isdir(os.path.join(data_dir, dataset, a))])
+    beta=1e-12
+
+    method = "%s_%s_%6f" % (encoder, dataset, beta)
+
+    authors = sorted([a for a in os.listdir(os.path.join(data_dir)) if os.path.isdir(os.path.join(data_dir, a))])
     documents = []
     doc2aut = {}
     id_docs = []
+    # s_authors =[28,32,33,35,64,92,99,100,101,112,
+    #     114,116,125,127,144,153,154,162,164,168,
+    #     169,170,174,179,183,196,197,202,220,225,
+    #     235,236,241,242,243,246,251,255,259,271,
+    #     278,290,293,299,300,302,310,329,330,338,
+    #     343,344,348,356,359,367,368,371,378,379,
+    #     381,399,402,404,405,410,416,422,425,426,
+    #     432,448,456,481,482,489,498,509,516,517,
+    #     525,538,539,549,562,584,590,597,601,602,
+    #     605,606,613,614,624,631,640,643,655,662]
+    # authors= [authors[i] for i in s_authors]
 
     for author in tqdm(authors):
-        docs = sorted([doc for doc in os.listdir(os.path.join(data_dir, dataset, author))])
+        docs = sorted([doc for doc in os.listdir(os.path.join(data_dir, author))])
         id_docs = [*id_docs, *[doc.replace(".txt", "") for doc in docs]]
 
         for doc in docs:
-            documents.append(read(os.path.join(data_dir, dataset, author, doc)))
             doc2aut[doc.replace(".txt", "")] = author
+            if not (encoder=="GNN"):
+                documents.append(read(os.path.join(data_dir, author, doc)))
 
     aut2id = dict(zip(authors, list(range(len(authors)))))
     doc2id = dict(zip(id_docs, list(range(len(id_docs)))))
 
     nd = len(doc2id)
     na = len(aut2id)
+
+    if encoder == "GNN":
+        documents = np.zeros((nd, 2, 256, 512))
+        documents[:,0,:,:] = np.load(".\\data\\%s\\text.npy" % dataset)
+        documents[:,1,:,:256] = np.load(".\\data\\%s\\dep_adj_matrix.npy" % dataset)
+        documents[:,1,:,256:512] = np.load(".\\data\\%s\\dep_value_matrix.npy" % dataset)
 
     di2ai = {doc2id[d]: aut2id[a] for d,a in doc2aut.items()}
 
@@ -147,7 +164,7 @@ if __name__ == "__main__":
     print("Embedding in dimension %d, padding in %d" % (r,max_l))
 
     ############ Splitting Data #########
-    batch_size = 64
+    batch_size = 128
 
     train_data = tf.data.Dataset.from_tensor_slices((data_pairs,features_train,labels)).shuffle(len(labels)).batch(batch_size)
 
