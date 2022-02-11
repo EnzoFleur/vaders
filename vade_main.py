@@ -25,12 +25,12 @@ from sklearn.metrics import coverage_error,label_ranking_average_precision_score
 from encoders import VADER, compute_apply_gradients, compute_loss
 from regressor import style_embedding_evaluation
 
-import random
+# import random
 
-os.environ['TF_CUDNN_DETERMINISTIC']='1'
-random.seed(42)
-np.random.seed(42)
-tf.random.set_seed(42)
+# os.environ['TF_CUDNN_DETERMINISTIC']='1'
+# random.seed(42)
+# np.random.seed(42)
+# tf.random.set_seed(42)
 
 ############# Text Reader ###############
 def clean_str(string):
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     # batch_size = 128
     # epochs=100
 
-    method = "%s_%s_%6f" % (encoder, dataset, beta)
+    method = "%s_%s_%s_%6f_%6f" % (loss,encoder, dataset, beta, alpha)
 
     authors = sorted([a for a in os.listdir(os.path.join(data_dir)) if os.path.isdir(os.path.join(data_dir, a))])
     documents = []
@@ -196,7 +196,7 @@ if __name__ == "__main__":
 
     r = doc_r
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
-    model = VADER(na,r,doc_r,max_l, encoder=encoder, beta=beta, L=5, alpha=alpha, loss=loss) 
+    model = VADER(na,r,doc_r,max_l, encoder=encoder, beta=beta, L=10, alpha=alpha, loss=loss) 
 
     result = []
     pairs, yf, y = next(iter(train_data))
