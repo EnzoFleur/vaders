@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import time
-
+import sys
+import math
 import os
 import re
+import json
 from tqdm import tqdm
 import argparse
 
@@ -13,6 +15,8 @@ from scipy.spatial import distance_matrix
 import pandas as pd
 import numpy as np
 import tensorflow as tf
+
+import matplotlib.patches as mpatches
  
 from tensorflow.keras import layers,Model
 from tensorflow.keras.initializers import Constant
@@ -25,12 +29,18 @@ from sklearn.metrics import coverage_error,label_ranking_average_precision_score
 from encoders import VADER, compute_apply_gradients, compute_loss
 from regressor import style_embedding_evaluation
 
-import random
+import horovod.tensorflow as hvd
 
-os.environ['TF_CUDNN_DETERMINISTIC']='1'
-random.seed(42)
-np.random.seed(42)
-tf.random.set_seed(42)
+# Initialize Horovod
+hvd.init()
+
+# Pin GPU to be used to process local rank (one GPU per process)
+gpus = tf.config.experimental.list_physical_devices('GPU')
+for gpu in gpus:
+    tf.config.experimental.set_memory_growth(gpu, True)
+if gpus:
+    tf.config.experimental.set_visible_devices(gpus[hvd.local_rank()], 'GPU')
+ 
 
 ############# Text Reader ###############
 def clean_str(string):
@@ -71,7 +81,7 @@ if __name__ == "__main__":
     dataset = data_dir.split(os.sep)[-1]
     beta = args.beta
     epochs = args.epochs
-    batch_size = args.batchsize
+    batch_size = args.batchsize 
 
     encoder = args.encoder
     alpha = args.alpha
@@ -194,12 +204,33 @@ if __name__ == "__main__":
 
     print("Building the model")
 
-    r = doc_r
-    optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+    optimizer = tf.train.AdagradOptimizer(0.001 * hvd.size())
+    # Add Horovod Distributed Optimizer
+    optimizer = hvd.DistributedOptimizer(optimizer)
+
+    # Add hook to broadcast variables from rank 0 to all other processes during
+    # initialization.
+    hooks = [hvd.BroadcastGlobalVariablesHook(0)]
+
     model = VADER(na,r,doc_r,max_l, encoder=encoder, beta=beta, L=5, alpha=alpha, loss=loss) 
 
     result = []
     pairs, yf, y = next(iter(train_data))
+
+    def compute_apply_multi_gradients(model, documents, pairs, y, yf, optimizer, first_batch):
+        
+        with tf.GradientTape() as tape:
+
+            loss = compute_loss(model, documents, pairs, y, yf)
+            
+        tape = hvd.DistributedGradientTape(tape)
+        gradients = tape.gradient(loss, model.trainable_variables)
+        
+        optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+        if first_batch:
+            hvd.broadcast_variables(model.variables, root_rank=0)
+            hvd.broadcast_variables(optimizer.variables(), root_rank=0)
 
     print("Training the model")
     for epoch in range(1, epochs + 1):
@@ -208,11 +239,11 @@ if __name__ == "__main__":
         print("[%d/%d]  F-loss : %.3f | A-loss : %.3f | I-loss : %.3f" % (epoch, epochs, f_loss, a_loss, i_loss), flush=True)
         
         start_time = time.time()
-        for pairs, yf, y in tqdm(train_data):
-            compute_apply_gradients(model, documents, pairs, y, yf, optimizer)
+        for batch, pairs, yf, y in tqdm(enumerate(train_data.take(len(train_data) // hvd.size()))):
+            compute_apply_multi_gradients(model, documents, pairs, y, yf, optimizer, batch == 0)
         end_time = time.time()
 
-        if epoch % 5 == 0:
+        if (epoch % 5 == 0) and (hvd.local_rank() == 0):
             aut_emb = []
             for i in range(model.nba):
                 aut_emb.append(np.asarray(model.mean_author(i)))   
@@ -249,51 +280,52 @@ if __name__ == "__main__":
 
             model.save_weights(os.path.join("results", ".\\%s.ckpt" % method))
 
-    with open(os.path.join("results", 'res_%s.txt' % method), 'w') as f:
-        for item in result:
-            f.write("%s\n" % item)
+    if hvd.rank() == 0:
+        with open(os.path.join("results", 'res_%s.txt' % method), 'w') as f:
+            for item in result:
+                f.write("%s\n" % item)
 
-    print("Building author and doc embedding")    
-    aut_emb = []
-    aut_var = []
-    for i in range(model.nba):
-        aut_emb.append(np.asarray(model.mean_author(i)))  
-        aut_var.append(np.asarray(tf.math.exp(model.logvar_author(i))))
-    aut_emb = np.vstack(aut_emb)
-    aut_var = np.vstack(aut_var)
+        print("Building author and doc embedding")    
+        aut_emb = []
+        aut_var = []
+        for i in range(model.nba):
+            aut_emb.append(np.asarray(model.mean_author(i)))  
+            aut_var.append(np.asarray(tf.math.exp(model.logvar_author(i))))
+        aut_emb = np.vstack(aut_emb)
+        aut_var = np.vstack(aut_var)
 
-    split = 256
-    nb = int(nd / split )
-    out= []
-    for i in tqdm(range(nb)): 
-        start = (i*split ) 
-        stop = start + split 
-        Xt = documents[start:stop]
-        doc_emb,_ = model.encode_doc(Xt,None, training=False) 
-        out.append(doc_emb)    
-    Xt = documents[((i+1)*split)::]
-    doc_emb,_ = model.encode_doc(Xt,None, training=False)                                 
-    out.append(doc_emb)
-    doc_emb = np.vstack(out)
+        split = 256 
+        nb = int(nd / split )
+        out= []
+        for i in tqdm(range(nb)): 
+            start = (i*split ) 
+            stop = start + split 
+            Xt = documents[start:stop]
+            doc_emb,_ = model.encode_doc(Xt,None, training=False) 
+            out.append(doc_emb)    
+        Xt = documents[((i+1)*split)::]
+        doc_emb,_ = model.encode_doc(Xt,None, training=False)                                 
+        out.append(doc_emb)
+        doc_emb = np.vstack(out)
 
-    #################################################### Eval ##################################################
-    print("Evaluation Aut id")
-    y_score = normalize(normalize(doc_emb[doc_tp], axis=1) @ normalize(aut_emb, axis=1).transpose(),norm="l1")
-    ce = (coverage_error(aut_doc_test[doc_tp,:], y_score)/na)*100
-    lr = label_ranking_average_precision_score(aut_doc_test[doc_tp,:], y_score)*100
-    print("coverage, precision")
-    print(str(round(ce,2)) + ", "+ str(round(lr,2)))
-    output = open("coverage_"+method+".txt", "a+")
-    output.write(method+" & "+str(round(ce,2)) + " & "+ str(round(lr,2)) + "\\\ \n")
-    output.close()
+        #################################################### Eval ##################################################
+        print("Evaluation Aut id")
+        y_score = normalize(normalize(doc_emb[doc_tp], axis=1) @ normalize(aut_emb, axis=1).transpose(),norm="l1")
+        ce = (coverage_error(aut_doc_test[doc_tp,:], y_score)/na)*100
+        lr = label_ranking_average_precision_score(aut_doc_test[doc_tp,:], y_score)*100
+        print("coverage, precision")
+        print(str(round(ce,2)) + ", "+ str(round(lr,2)))
+        output = open("coverage_"+method+".txt", "a+")
+        output.write(method+" & "+str(round(ce,2)) + " & "+ str(round(lr,2)) + "\\\ \n")
+        output.close()
 
-    np.save(os.path.join("results", "aut_%s.npy" % method), aut_emb)
-    np.save(os.path.join("results", "aut_var_%s.npy" % method), aut_var)
-    np.save(os.path.join("results", "doc_%s.npy" % method), doc_emb)
+        np.save(os.path.join("results", "aut_%s.npy" % method), aut_emb)
+        np.save(os.path.join("results", "aut_var_%s.npy" % method), aut_var)
+        np.save(os.path.join("results", "doc_%s.npy" % method), doc_emb)
 
-    ################################################### Style Eval ##############################################
+        ################################################### Style Eval ##############################################
 
-    features = pd.read_csv(os.path.join(res_dir, dataset, "features", "features.csv"), sep=";")
-    res_df = style_embedding_evaluation(aut_emb, features.groupby("author").mean().reset_index(), n_fold=10)
-    res_df.to_csv(os.path.join("results", "style_%s.csv" % method), sep=";")
-    # res_df = style_embedding_evaluation(doc_embd, features.drop(['author', 'id'], axis=1), n_fold=2)
+        features = pd.read_csv(os.path.join(res_dir, dataset, "features", "features.csv"), sep=";")
+        res_df = style_embedding_evaluation(aut_emb, features.groupby("author").mean().reset_index(), n_fold=10)
+        res_df.to_csv(os.path.join("results", "style_%s.csv" % method), sep=";")
+        # res_df = style_embedding_evaluation(doc_embd, features.drop(['author', 'id'], axis=1), n_fold=2)
