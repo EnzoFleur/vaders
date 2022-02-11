@@ -51,6 +51,12 @@ if __name__ == "__main__":
                         help='Document encoder to use')
     parser.add_argument('-b','--beta', default=1e-12, type=float,
                         help='Beta parameter value')
+    parser.add_argument('-a','--alpha', default=1/2, type=float,
+                        help='Alpha parameter value')
+    parser.add_argument('-l','--loss', default="CE", type=str,
+                        help='Type of feature loss (L2 or CE)')
+    parser.add_argument('-n','--negpairs', default=1, type=int,
+                        help='Number of negative pairs to sample')
     args = parser.parse_args()
 
     data_dir = args.dataset
@@ -59,14 +65,20 @@ if __name__ == "__main__":
     beta = args.beta
 
     encoder = args.encoder
+    alpha = args.alpha
+    negpairs = args.negpairs
+    loss = args.loss
 
     ############# Data ################
-    dataset = "gutenberg"
+    # dataset = "gutenberg"
 
-    encoder="GNN"
-    data_dir = "C:\\Users\\EnzoT\\Documents\\datasets\\gutenberg"
-    res_dir = "C:\\Users\\EnzoT\\Documents\\results"
-    beta=1e-12
+    # encoder="USE"
+    # data_dir = "C:\\Users\\EnzoT\\Documents\\datasets\\gutenberg"
+    # res_dir = "C:\\Users\\EnzoT\\Documents\\results"
+    # beta=1e-12
+    # alpha=1/2
+    # loss="CE"
+    # negpairs = 1
 
     method = "%s_%s_%6f" % (encoder, dataset, beta)
 
@@ -102,10 +114,12 @@ if __name__ == "__main__":
     na = len(aut2id)
 
     if encoder == "GNN":
-        documents = np.zeros((nd, 2, 256, 512))
-        documents[:,0,:,:] = np.load(".\\data\\%s\\text.npy" % dataset)
-        documents[:,1,:,:256] = np.load(".\\data\\%s\\dep_adj_matrix.npy" % dataset)
-        documents[:,1,:,256:512] = np.load(".\\data\\%s\\dep_value_matrix.npy" % dataset)
+        documents = np.zeros((nd, 2, 256, 512)).astype(np.float32)
+        documents[:,0,:,:] = np.load(".\\data\\%s\\text.npy" % dataset).astype(np.float32)
+        documents[:,1,:,:256] = np.load(".\\data\\%s\\dep_adj_matrix.npy" % dataset).astype(np.float32)
+        documents[:,1,:,256:512] = np.load(".\\data\\%s\\dep_value_matrix.npy" % dataset).astype(np.float32)
+    else:
+        documents = np.array(documents)
 
     di2ai = {doc2id[d]: aut2id[a] for d,a in doc2aut.items()}
 
@@ -138,20 +152,21 @@ if __name__ == "__main__":
         features_train.append(features[d])
         labels.append([1,1])
 
+
         # # True author, wrong features
-        data_pairs.append((d, a))
-        features_train.append(features[di2ai_df_train[di2ai_df_train.documents != d].documents.sample().values[0]])
-        labels.append([1,0])
+        data_pairs.extend([(d,a) for _ in range(negpairs)])
+        features_train.extend([features[di2ai_df_train[di2ai_df_train.documents != d].documents.sample(1).values[0]] for _ in range(negpairs)])
+        labels.extend([[1,0] for _ in range(negpairs)])
 
         # Wrong author, true features
-        data_pairs.append((d, di2ai_df_train[di2ai_df_train.authors!=a].authors.sample(1).values[0]))
-        features_train.append(features[d])
-        labels.append([0,1])
+        data_pairs.extend(zip([d]*negpairs, di2ai_df_train[di2ai_df_train.authors!=a].authors.sample(negpairs)))
+        features_train.extend([features[d] for _ in range(negpairs)])
+        labels.extend([[0,1] for _ in range(negpairs)])
 
         # # Wrong author, wrong features
-        data_pairs.append((d, di2ai_df_train[di2ai_df_train.authors!=a].authors.sample(1).values[0]))
-        features_train.append(features[di2ai_df_train[di2ai_df_train.documents != d].documents.sample().values[0]])
-        labels.append([0,0])
+        data_pairs.extend(zip([d]*negpairs, di2ai_df_train[di2ai_df_train.authors!=a].authors.sample(negpairs)))
+        features_train.extend([features[di2ai_df_train[di2ai_df_train.documents != d].documents.sample(1).values[0]] for _ in range(negpairs)])
+        labels.extend([[0,0] for _ in range(negpairs)])
 
     features_train = np.float32(np.array(features_train))
 
@@ -164,7 +179,7 @@ if __name__ == "__main__":
     print("Embedding in dimension %d, padding in %d" % (r,max_l))
 
     ############ Splitting Data #########
-    batch_size = 128
+    batch_size = 64
 
     train_data = tf.data.Dataset.from_tensor_slices((data_pairs,features_train,labels)).shuffle(len(labels)).batch(batch_size)
 
@@ -173,13 +188,12 @@ if __name__ == "__main__":
     print("Building the model")
 
     r = doc_r
-    epochs = 30
+    epochs = 150
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
-    model = VADER(na,r,doc_r,max_l, encoder=encoder, beta=beta, L=5) 
+    model = VADER(na,r,doc_r,max_l, encoder=encoder, beta=beta, L=5, alpha=alpha, loss=loss) 
 
     result = []
     pairs, yf, y = next(iter(train_data))
-    documents = np.array(documents)
 
     print("Training the model")
     for epoch in range(1, epochs + 1):
@@ -226,6 +240,8 @@ if __name__ == "__main__":
             print("coverage Cosine",flush=True)
             print(str(round(ce,2)))
             result.append(ce)
+
+            model.save_weights(".\\%s.ckpt" % method)
 
     with open('res_%s.txt' % method, 'w') as f:
         for item in result:

@@ -242,10 +242,13 @@ class AsaTgcn(layers.Layer):
         return output
 
 class VADER(tf.keras.Model):
-    def __init__(self,nba,r,doc_r,pl, encoder, beta = 1e-12,L=1):
+    def __init__(self,nba,r,doc_r,pl, encoder, beta = 1e-12,L=1, loss="CE", alpha=1/2):
     
         super(VADER, self).__init__()
     
+
+        self.loss = loss
+        self.alpha = alpha
         self.nba = nba
         self.r = r
         self.doc_r = doc_r
@@ -282,22 +285,13 @@ class VADER(tf.keras.Model):
         self.logvar_author = layers.Embedding(self.nba,self.r,tf.keras.initializers.RandomUniform(minval=-0.5, maxval=0.5),
                                                 name = 'aut_var')
     
-    def compute_distance(self,doc_mean,doc_var,mean,var):
-
-        aut_emb = self.reparameterize(mean,var)
-        doc_emb = self.reparameterize(doc_mean,doc_var)
-
-        return tf.sqrt(tf.reduce_sum(tf.pow(aut_emb - doc_emb, 2), 1))     
-
     def reparameterize(self, mean, logvar):
         
         eps = tf.random.normal(shape=(mean.shape))
             
         return eps * tf.math.sqrt(tf.math.exp(logvar)) + mean
 
-    def logistic_classifier_features(self, features, mean, var, apply_sigmoid=True):
-
-        doc_emb = self.reparameterize(mean, var)
+    def logistic_classifier_features(self, features, doc_emb, apply_sigmoid=True):
 
         distance = tf.sqrt(tf.reduce_sum(tf.pow(features - doc_emb, 2), 1))
 
@@ -371,20 +365,25 @@ def compute_loss(model, documents, pairs, y, yf, training=True):
     feature_loss = 0
     author_loss = 0
 
+    if model.loss == "L2":
+        # Classic and basic bread and butter L2 loss
+        feature_loss += model.L * tf.reduce_sum(tf.sqrt(tf.nn.l2_loss(doc_mean-yf)))
+
     for draw in range(model.L):
 
-        # Classic and basic bread and butter L2 loss
-        feature_loss += 10*tf.reduce_sum(tf.sqrt(tf.nn.l2_loss(model.reparameterize(doc_mean, doc_var)-yf)))
+        doc_emb = model.reparameterize(doc_mean, doc_var)
+        aut_emb = model.reparameterize(mean_aut, logvar_aut)
 
-        ## Bring closer document embedding and stylistic features
-        probs = model.logistic_classifier_features(yf, doc_mean, doc_var, apply_sigmoid=False)
+        if model.loss == "CE":
+            ## Bring closer document embedding and stylistic features
+            probs = model.logistic_classifier_features(yf, doc_emb, apply_sigmoid=False)
 
-        cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=probs, labels=y_features)
+            cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=probs, labels=y_features)
 
-        feature_loss += tf.reduce_sum(cross_ent)
+            feature_loss += tf.reduce_sum(cross_ent)
 
         ## Bring closer document and author embeddings
-        distance = model.compute_distance(doc_mean,doc_var,mean_aut,logvar_aut)
+        distance = tf.sqrt(tf.reduce_sum(tf.pow(aut_emb - doc_emb, 2), 1))
 
         probs = model.logistic_classifier(distance, apply_sigmoid=False)
 
@@ -392,9 +391,9 @@ def compute_loss(model, documents, pairs, y, yf, training=True):
 
         author_loss += tf.reduce_sum(cross_ent)
         
-    feature_loss /= model.L
-    author_loss /= model.L
-    
+    feature_loss *= model.alpha/model.L
+    author_loss *= (1-model.alpha).model.L
+
     ## Info Loss ####
 
     KL_loss_aut_emb = 0.5 * tf.reduce_sum(tf.square(mean_aut)
@@ -420,44 +419,3 @@ def compute_apply_gradients(model, documents, pairs, y, yf, optimizer):
     gradients = tape.gradient(loss, model.trainable_variables)
     
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-
-
-
-
-    batch_size, max_len, feat_dim = val_out.shape
-    val_us = tf.expand_dims(val_out, axis=2)
-    val_us = tf.repeat(val_us, [max_len], axis=2)
-    val_cat = tf.concat([val_us, dep_embed], axis=-1)
-    atten_expand = val_cat * tf.transpose(val_cat, perm=[0, 2, 1, 3])
-
-    attention_score = tf.math.reduce_sum(atten_expand, axis=-1)
-    attention_score = attention_score / np.power(feat_dim, 0.5)
-
-    attention_score = tf.math.softmax(attention_score)
-    attention_score = tf.math.multiply()
-
-    exp_attention_score = tf.math.exp(attention_score)
-    exp_attention_score = tf.math.multiply(exp_attention_score, adj)
-    sum_attention_score = tf.repeat(tf.expand_dims(tf.math.reduce_sum(exp_attention_score, axis=-1), axis=-1), max_len, axis=-1)
-
-    attention_score = tf.math.divide(exp_attention_score, sum_attention_score + 1e-10)
-
-
-
-    dep_embed = tt_model.dep_embedding(dep_value_matrix)
-    dep_embed = tt_model.switch([dep_value_matrix, dep_embed])
-
-    batch_size, max_len, feat_dim = text.shape
-
-    seq_out = tt_model.batchnorm(seq_out)
-    seq_out = tt_model.dropout(text)
-    attention_score_for_output = []
-    tgcn_layers_output = []
-    
-    for tgcn in tt_model.TGCNLayers:
-        attention_score = tt_model.get_attention(seq_out, dep_embed, dep_adj_matrix)
-        attention_score_for_output.append(attention_score)
-        seq_out = tf.nn.relu(tgcn(seq_out, attention_score, dep_embed))
-        tgcn_layers_output.append(seq_out)
-
-    tgcn_layers_output_pool = [self.get_average(input_mask, x_out) for x_out in tgcn_layers_output]
