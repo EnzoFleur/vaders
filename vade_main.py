@@ -281,9 +281,9 @@ if __name__ == "__main__":
     output.write(method+" & "+str(round(ce,2)) + " & "+ str(round(lr,2)) + "\\\ \n")
     output.close()
 
-    np.save("aut_%s.npy" % method, aut_emb)
-    np.save("aut_var_%s.npy" % method, aut_var)
-    np.save("doc_%s.npy" % method, doc_emb)
+    np.save(".\\results\\aut_%s.npy" % method, aut_emb)
+    np.save(".\\results\\aut_var_%s.npy" % method, aut_var)
+    np.save(".\\results\\doc_%s.npy" % method, doc_emb)
 
     ################################################### Style Eval ##############################################
 

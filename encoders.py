@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-import tensorflow_text as text
+# import tensorflow_text as text
 
 from tensorflow.keras import layers,Model
 from tensorflow.keras.initializers import Constant
@@ -42,13 +42,14 @@ def make_bert_preprocess_model(sentence_features, tfhub_handle_preprocess, seq_l
   model_inputs = packer(truncated_segments)
   return tf.keras.Model(input_segments, model_inputs)
 
-BERT_preprocess_path = "C:\\Users\\EnzoT\\Documents\\code\\bert_preprocess\\"
-BERT_preprocess = make_bert_preprocess_model(['input1, input2'], BERT_preprocess_path)
+# BERT_preprocess_path = "C:\\Users\\EnzoT\\Documents\\code\\bert_preprocess\\"
+# BERT_preprocess = make_bert_preprocess_model(['input1, input2'], BERT_preprocess_path)
+BERT_preprocess = None
+# BERT_path = "C:\\Users\\EnzoT\\Documents\\code\\bert\\"
+# BERT_layer = hub.KerasLayer(BERT_path, trainable = True)
+BERT_layer = None
 
-BERT_path = "C:\\Users\\EnzoT\\Documents\\code\\bert\\"
-BERT_layer = hub.KerasLayer(BERT_path, trainable = True)
-
-USE_path = "C:\\Users\\EnzoT\\Documents\\code\\universal-sentence-encoder\\"
+USE_path = "..\\universal-sentence-encoder\\"
 USE_layer = hub.KerasLayer(USE_path, trainable=True)
 
 class MLP(layers.Layer):
