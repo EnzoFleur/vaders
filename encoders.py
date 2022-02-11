@@ -49,7 +49,7 @@ BERT_preprocess = None
 # BERT_layer = hub.KerasLayer(BERT_path, trainable = True)
 BERT_layer = None
 
-USE_path = "..\\universal-sentence-encoder\\"
+USE_path = os.path.join("..", 'universal-sentence-encoder')
 USE_layer = hub.KerasLayer(USE_path, trainable=True)
 
 class MLP(layers.Layer):
