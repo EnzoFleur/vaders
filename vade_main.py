@@ -51,6 +51,10 @@ if __name__ == "__main__":
                         help='Document encoder to use')
     parser.add_argument('-b','--beta', default=1e-12, type=float,
                         help='Beta parameter value')
+    parser.add_argument('-bs','--batchsize', default=64, type=int,
+                        help='Batch size')
+    parser.add_argument('-ep','--epochs', default=100, type=int,
+                        help='Epochs')
     parser.add_argument('-a','--alpha', default=1/2, type=float,
                         help='Alpha parameter value')
     parser.add_argument('-l','--loss', default="CE", type=str,
@@ -63,6 +67,8 @@ if __name__ == "__main__":
     res_dir=args.outdir
     dataset = data_dir.split(os.sep)[-1]
     beta = args.beta
+    epochs = args.epochs
+    batch_size = args.batchsize
 
     encoder = args.encoder
     alpha = args.alpha
@@ -79,6 +85,8 @@ if __name__ == "__main__":
     # alpha=1/2
     # loss="CE"
     # negpairs = 1
+    # batch_size = 128
+    # epochs=100
 
     method = "%s_%s_%6f" % (encoder, dataset, beta)
 
@@ -139,14 +147,11 @@ if __name__ == "__main__":
     doc_tp = np.sort(list(di2ai_test.documents))
     aut_doc_test = np.array(pd.crosstab(di2ai_df.documents, di2ai_df.authors).sort_values(by='documents', ascending=True))
 
-    # features_distance = distance_matrix(features, features, p=2)
     features_train = []
     data_pairs = []
     labels = []
 
     for d, a in di2ai_df_train.itertuples(index=False, name=None):
-        # ind = np.argpartition(features_distance[d,:], -50)[-50:]
-
         # True author, true features
         data_pairs.append((d,a))
         features_train.append(features[d])
@@ -179,7 +184,6 @@ if __name__ == "__main__":
     print("Embedding in dimension %d, padding in %d" % (r,max_l))
 
     ############ Splitting Data #########
-    batch_size = 64
 
     train_data = tf.data.Dataset.from_tensor_slices((data_pairs,features_train,labels)).shuffle(len(labels)).batch(batch_size)
 
@@ -188,7 +192,6 @@ if __name__ == "__main__":
     print("Building the model")
 
     r = doc_r
-    epochs = 150
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
     model = VADER(na,r,doc_r,max_l, encoder=encoder, beta=beta, L=5, alpha=alpha, loss=loss) 
 
