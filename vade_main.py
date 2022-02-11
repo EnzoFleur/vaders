@@ -61,7 +61,7 @@ if __name__ == "__main__":
 
     data_dir = args.dataset
     res_dir=args.outdir
-    dataset = data_dir.split('\\')[-1]
+    dataset = data_dir.split(os.sep)[-1]
     beta = args.beta
 
     encoder = args.encoder
@@ -115,9 +115,9 @@ if __name__ == "__main__":
 
     if encoder == "GNN":
         documents = np.zeros((nd, 2, 256, 512)).astype(np.float32)
-        documents[:,0,:,:] = np.load(".\\data\\%s\\text.npy" % dataset).astype(np.float32)
-        documents[:,1,:,:256] = np.load(".\\data\\%s\\dep_adj_matrix.npy" % dataset).astype(np.float32)
-        documents[:,1,:,256:512] = np.load(".\\data\\%s\\dep_value_matrix.npy" % dataset).astype(np.float32)
+        documents[:,0,:,:] = np.load(os.path.join("data", dataset, "text.npy")).astype(np.float32)
+        documents[:,1,:,:256] = np.load(os.path.join("data", dataset, "dep_adj_matrix.npy")).astype(np.float32)
+        documents[:,1,:,256:512] = np.load(os.path.join("data", dataset, "dep_value_matrix.npy")).astype(np.float32)
     else:
         documents = np.array(documents)
 
@@ -241,9 +241,9 @@ if __name__ == "__main__":
             print(str(round(ce,2)))
             result.append(ce)
 
-            model.save_weights(".\\%s.ckpt" % method)
+            model.save_weights(os.path.join("results", ".\\%s.ckpt" % method))
 
-    with open('res_%s.txt' % method, 'w') as f:
+    with open(os.path.join("results", 'res_%s.txt' % method), 'w') as f:
         for item in result:
             f.write("%s\n" % item)
 
@@ -281,13 +281,13 @@ if __name__ == "__main__":
     output.write(method+" & "+str(round(ce,2)) + " & "+ str(round(lr,2)) + "\\\ \n")
     output.close()
 
-    np.save(".\\results\\aut_%s.npy" % method, aut_emb)
-    np.save(".\\results\\aut_var_%s.npy" % method, aut_var)
-    np.save(".\\results\\doc_%s.npy" % method, doc_emb)
+    np.save(os.path.join("results", "aut_%s.npy" % method), aut_emb)
+    np.save(os.path.join("results", "aut_var_%s.npy" % method), aut_var)
+    np.save(os.path.join("results", "doc_%s.npy" % method), doc_emb)
 
     ################################################### Style Eval ##############################################
 
     features = pd.read_csv(os.path.join(res_dir, dataset, "features", "features.csv"), sep=";")
     res_df = style_embedding_evaluation(aut_emb, features.groupby("author").mean().reset_index(), n_fold=10)
-    res_df.to_csv("style_%s.csv" % method, sep=";")
+    res_df.to_csv(os.path.join("results", "style_%s.csv" % method), sep=";")
     # res_df = style_embedding_evaluation(doc_embd, features.drop(['author', 'id'], axis=1), n_fold=2)
