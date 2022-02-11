@@ -262,9 +262,9 @@ class VADER(tf.keras.Model):
         self.a_authors = tf.Variable(tf.ones([1]),name = 'a_author',trainable = True)
         self.b_authors = tf.Variable(tf.ones([1]),name = 'b_author', trainable = True)       
         
-        self.a_features = tf.Variable(tf.ones([1]),name = 'a_features',trainable = True)
-        self.b_features = tf.Variable(tf.ones([1]),name = 'b_features', trainable = True)   
-
+        if self.L == "CE":
+            self.a_features = tf.Variable(tf.ones([1]),name = 'a_features',trainable = True)
+            self.b_features = tf.Variable(tf.ones([1]),name = 'b_features', trainable = True)   
         if encoder == "DAN":
             self.doc_mean = DAN(self.r, self.r)
             self.doc_var = DAN(self.r, self.r)
@@ -369,7 +369,7 @@ def compute_loss(model, documents, pairs, y, yf, training=True):
 
     if model.loss == "L2":
         # Classic and basic bread and butter L2 loss
-        feature_loss += model.L * tf.reduce_sum(tf.sqrt(tf.nn.l2_loss(doc_mean-yf)))
+        feature_loss += model.L * tf.reduce_sum((tf.nn.l2_loss(doc_mean-yf)))
 
     for draw in range(model.L):
 
