@@ -79,21 +79,22 @@ if __name__ == "__main__":
     loss = args.loss
 
     ############# Data ################
-    dataset = "gutenberg"
+    # dataset = "gutenberg"
 
-    encoder="USE"
-    data_dir = "C:\\Users\\EnzoT\\Documents\\datasets\\gutenberg"
-    res_dir = "C:\\Users\\EnzoT\\Documents\\results"
-    beta=1e-12
-    alpha=1/2
-    loss="CE"
-    negpairs = 1
-    batch_size = 128
-    epochs=100
+    # encoder="USE"
+    # data_dir = "C:\\Users\\EnzoT\\Documents\\datasets\\gutenberg"
+    # res_dir = "C:\\Users\\EnzoT\\Documents\\results"
+    # beta=1e-12
+    # alpha=1/2
+    # loss="CE"
+    # negpairs = 1
+    # batch_size = 128
+    # epochs=100
 
-    method = "%s_%s_%s_%6f_%3f" % (loss,encoder, dataset, beta, alpha)
+    method = "%s_%s_%s_%6f_%3f_%d" % (loss,encoder, dataset, beta, alpha, negpairs)
 
-    os.mkdir(os.path.join("results", method))
+    if not os.path.isdir(os.path.join("results", method)):
+        os.mkdir(os.path.join("results", method))
 
     authors = sorted([a for a in os.listdir(os.path.join(data_dir)) if os.path.isdir(os.path.join(data_dir, a))])
     documents = []
