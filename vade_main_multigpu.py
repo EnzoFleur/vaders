@@ -101,7 +101,10 @@ if __name__ == "__main__":
     # batch_size = 128
     # epochs=100
 
-    method = "%s_%s_%6f" % (encoder, dataset, beta)
+    method = "%s_%s_%s_%6f_%3f_%d_mGPU" % (loss,encoder, dataset, beta, alpha, negpairs)
+
+    if not os.path.isdir(os.path.join("results", method)):
+        os.mkdir(os.path.join("results", method))
 
     authors = sorted([a for a in os.listdir(os.path.join(data_dir)) if os.path.isdir(os.path.join(data_dir, a))])
     documents = []
@@ -278,10 +281,10 @@ if __name__ == "__main__":
             print(str(round(ce,2)))
             result.append(ce)
 
-            model.save_weights(os.path.join("results", ".\\%s.ckpt" % method))
+            model.save_weights(os.path.join("results", method, "%s.ckpt" % method))
 
     if hvd.rank() == 0:
-        with open(os.path.join("results", 'res_%s.txt' % method), 'w') as f:
+        with open(os.path.join("results", method, 'res_%s.txt' % method), 'w') as f:
             for item in result:
                 f.write("%s\n" % item)
 
@@ -315,17 +318,16 @@ if __name__ == "__main__":
         lr = label_ranking_average_precision_score(aut_doc_test[doc_tp,:], y_score)*100
         print("coverage, precision")
         print(str(round(ce,2)) + ", "+ str(round(lr,2)))
-        output = open("coverage_"+method+".txt", "a+")
-        output.write(method+" & "+str(round(ce,2)) + " & "+ str(round(lr,2)) + "\\\ \n")
-        output.close()
+        with open(os.path.join("results", method, "coverage_%s.txt" % method), "a+") as f:
+            f.write(method+" & "+str(round(ce,2)) + " & "+ str(round(lr,2)) + "\\\ \n")
 
-        np.save(os.path.join("results", "aut_%s.npy" % method), aut_emb)
-        np.save(os.path.join("results", "aut_var_%s.npy" % method), aut_var)
-        np.save(os.path.join("results", "doc_%s.npy" % method), doc_emb)
+        np.save(os.path.join("results", method, "aut_%s.npy" % method), aut_emb)
+        np.save(os.path.join("results", method, "aut_var_%s.npy" % method), aut_var)
+        np.save(os.path.join("results", method, "doc_%s.npy" % method), doc_emb)
 
         ################################################### Style Eval ##############################################
 
-        features = pd.read_csv(os.path.join(res_dir, dataset, "features", "features.csv"), sep=";")
+        features = pd.read_csv(os.path.join("data", dataset, "features", "features.csv"), sep=";")
         res_df = style_embedding_evaluation(aut_emb, features.groupby("author").mean().reset_index(), n_fold=10)
-        res_df.to_csv(os.path.join("results", "style_%s.csv" % method), sep=";")
+        res_df.to_csv(os.path.join("results", method, "style_%s.csv" % method), sep=";")
         # res_df = style_embedding_evaluation(doc_embd, features.drop(['author', 'id'], axis=1), n_fold=2)
