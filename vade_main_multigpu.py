@@ -207,7 +207,7 @@ if __name__ == "__main__":
 
     print("Building the model")
 
-    optimizer = tf.train.AdagradOptimizer(0.001 * hvd.size())
+    optimizer = tf.train.AdagradOptimizer(0.01 * hvd.size())
     # Add Horovod Distributed Optimizer
     optimizer = hvd.DistributedOptimizer(optimizer)
 
