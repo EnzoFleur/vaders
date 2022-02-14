@@ -79,19 +79,19 @@ if __name__ == "__main__":
     loss = args.loss
 
     ############# Data ################
-    # dataset = "gutenberg"
+    dataset = "gutenberg"
 
-    # encoder="USE"
-    # data_dir = "C:\\Users\\EnzoT\\Documents\\datasets\\gutenberg"
-    # res_dir = "C:\\Users\\EnzoT\\Documents\\results"
-    # beta=1e-12
-    # alpha=1/2
-    # loss="CE"
-    # negpairs = 1
-    # batch_size = 128
-    # epochs=100
+    encoder="USE"
+    data_dir = "C:\\Users\\EnzoT\\Documents\\datasets\\gutenberg"
+    res_dir = "C:\\Users\\EnzoT\\Documents\\results"
+    beta=1e-12
+    alpha=1/2
+    loss="CE"
+    negpairs = 1
+    batch_size = 128
+    epochs=100
 
-    method = "%s_%s_%s_%6f_%6f" % (loss,encoder, dataset, beta, alpha)
+    method = "%s_%s_%s_%6f_%3f" % (loss,encoder, dataset, beta, alpha)
 
     authors = sorted([a for a in os.listdir(os.path.join(data_dir)) if os.path.isdir(os.path.join(data_dir, a))])
     documents = []
@@ -194,7 +194,6 @@ if __name__ == "__main__":
 
     print("Building the model")
 
-    r = doc_r
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
     model = VADER(na,r,doc_r,max_l, encoder=encoder, beta=beta, L=10, alpha=alpha, loss=loss) 
 
@@ -283,9 +282,8 @@ if __name__ == "__main__":
     lr = label_ranking_average_precision_score(aut_doc_test[doc_tp,:], y_score)*100
     print("coverage, precision")
     print(str(round(ce,2)) + ", "+ str(round(lr,2)))
-    output = open("coverage_"+method+".txt", "a+")
-    output.write(method+" & "+str(round(ce,2)) + " & "+ str(round(lr,2)) + "\\\ \n")
-    output.close()
+    with open(os.path.join("results","coverage_%s.txt" % method), "a+") as f:
+        f.write(method+" & "+str(round(ce,2)) + " & "+ str(round(lr,2)) + "\\\ \n")
 
     np.save(os.path.join("results", "aut_%s.npy" % method), aut_emb)
     np.save(os.path.join("results", "aut_var_%s.npy" % method), aut_var)
@@ -293,7 +291,7 @@ if __name__ == "__main__":
 
     ################################################### Style Eval ##############################################
 
-    features = pd.read_csv(os.path.join(res_dir, dataset, "features", "features.csv"), sep=";")
+    features = pd.read_csv(os.path.join("data", dataset, "features", "features.csv"), sep=";")
     res_df = style_embedding_evaluation(aut_emb, features.groupby("author").mean().reset_index(), n_fold=10)
     res_df.to_csv(os.path.join("results", "style_%s.csv" % method), sep=";")
     # res_df = style_embedding_evaluation(doc_embd, features.drop(['author', 'id'], axis=1), n_fold=2)

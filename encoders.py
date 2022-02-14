@@ -248,7 +248,6 @@ class VADER(tf.keras.Model):
     
         super(VADER, self).__init__()
     
-
         self.loss = loss
         self.alpha = alpha
         self.nba = nba
@@ -262,9 +261,10 @@ class VADER(tf.keras.Model):
         self.a_authors = tf.Variable(tf.ones([1]),name = 'a_author',trainable = True)
         self.b_authors = tf.Variable(tf.ones([1]),name = 'b_author', trainable = True)       
         
-        if self.L == "CE":
+        if self.loss == "CE":
             self.a_features = tf.Variable(tf.ones([1]),name = 'a_features',trainable = True)
-            self.b_features = tf.Variable(tf.ones([1]),name = 'b_features', trainable = True)   
+            self.b_features = tf.Variable(tf.ones([1]),name = 'b_features', trainable = True) 
+  
         if encoder == "DAN":
             self.doc_mean = DAN(self.r, self.r)
             self.doc_var = DAN(self.r, self.r)
