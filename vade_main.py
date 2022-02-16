@@ -251,6 +251,11 @@ if __name__ == "__main__":
 
             model.save_weights(os.path.join("results", method, "%s.ckpt" % method))
 
+            np.save(os.path.join("results", method, "aut_%s.npy" % method), aut_emb)
+            np.save(os.path.join("results", method, "aut_var_%s.npy" % method), aut_var)
+            np.save(os.path.join("results", method, "doc_%s.npy" % method), doc_emb)
+
+
     with open(os.path.join("results", method, 'res_%s.txt' % method), 'w') as f:
         for item in result:
             f.write("%s\n" % item)
