@@ -190,11 +190,11 @@ if __name__ == "__main__":
     print("Training the model")
     for epoch in range(1, epochs + 1):
 
-        f_loss = compute_loss(model, documents, pairs)
+        f_loss = compute_loss(model, documents, mask, pairs)
         print("[%d/%d]  F-loss : %.3f" % (epoch, epochs, f_loss), flush=True)
         
         for pairs in tqdm(train_data):
-            compute_apply_gradients(model, documents, part_mask, pairs, optimizer)
+            compute_apply_gradients(model, documents, mask, pairs, optimizer)
 
         if epoch % 5 == 0:
             aut_emb = []
