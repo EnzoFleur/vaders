@@ -64,6 +64,8 @@ if __name__ == "__main__":
                         help='Type of feature loss (L2 or CE)')
     parser.add_argument('-n','--negpairs', default=1, type=int,
                         help='Number of negative pairs to sample')
+    parser.add_argument('-lr','--learningrate', default=1e-3, type=float,
+                        help='Learning rate')
     args = parser.parse_args()
 
     data_dir = args.dataset
@@ -77,6 +79,7 @@ if __name__ == "__main__":
     alpha = args.alpha
     negpairs = args.negpairs
     loss = args.loss
+    lr = args.learningrate
 
     ############# Data ################
     # dataset = "gutenberg"
@@ -91,8 +94,11 @@ if __name__ == "__main__":
     # batch_size = 128
     # epochs=100
 
-    method = "%s_%s_%s_%6f_%3f_%d" % (loss,encoder, dataset, beta, alpha, negpairs)
-
+    if lr == 1e-3:
+        method = "%s_%s_%s_%6f_%3f_%d" % (loss,encoder, dataset, beta, alpha, negpairs)
+    else:
+        method = "LR01_%s_%s_%s_%6f_%3f_%d" % (loss,encoder, dataset, beta, alpha, negpairs)
+        
     if not os.path.isdir(os.path.join("results", method)):
         os.mkdir(os.path.join("results", method))
 
@@ -197,10 +203,6 @@ if __name__ == "__main__":
 
     print("Building the model")
 
-    if epochs == 31:
-        lr = 0.01
-    else:
-        lr = 0.001
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 
     model = VADER(na,r,doc_r,max_l, encoder=encoder, beta=beta, L=10, alpha=alpha, loss=loss) 
