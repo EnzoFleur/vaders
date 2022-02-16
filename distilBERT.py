@@ -223,7 +223,7 @@ if __name__ == "__main__":
             print("Evaluation Aut id")
 
             aa = normalize(aut_emb, axis=1)
-            dd = normalize(doc_emb[np.sort(doc_tp)], axis=1)
+            dd = normalize(doc_emb, axis=1)
             y_score = normalize( dd @ aa.transpose(),norm="l1")
             ce = coverage_error(aut_doc_test[doc_tp,:], y_score)
             lr = label_ranking_average_precision_score(aut_doc_test[doc_tp,:], y_score)*100
