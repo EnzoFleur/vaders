@@ -197,7 +197,12 @@ if __name__ == "__main__":
 
     print("Building the model")
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+    if epochs == 31:
+        lr = 0.01
+    else:
+        lr = 0.001
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+
     model = VADER(na,r,doc_r,max_l, encoder=encoder, beta=beta, L=10, alpha=alpha, loss=loss) 
 
     result = []
