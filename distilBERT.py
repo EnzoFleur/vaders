@@ -180,7 +180,7 @@ if __name__ == "__main__":
 
     print("Building the model")
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=3e-5)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4)
 
     model = DeepStyle(na) 
 
