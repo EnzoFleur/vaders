@@ -34,6 +34,52 @@ import horovod.tensorflow as hvd
 # Initialize Horovod
 hvd.init()
 
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+# Create figure with secondary y-axis
+fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+# Add traces
+fig.add_trace(
+    go.Scatter(x=temp.alpha, y=temp.precision, name="LRAP"),
+    secondary_y=False,
+)
+
+fig.add_trace(
+    go.Scatter(x=temp.alpha, y=temp.Style_MSE, name="Style MSE"),
+    secondary_y=True,
+)
+
+# fig.add_trace(
+#     go.Scatter(x=temp.alpha, y=temp.precision, name="Precision"),
+#     secondary_y=True,
+# )
+
+# Add figure title
+fig.update_layout(
+    title_text="Authorship Attribution and Style scores as a function of α"
+)
+
+# Set x-axis title
+fig.update_xaxes(title_text="α parameter")
+
+# Set y-axes titles
+fig.update_yaxes(title_text="LRAP", secondary_y=False)
+fig.update_yaxes(title_text="Style MSE", secondary_y=True)
+
+fig.show()
+
+df = pd.read_csv(".\\results\\df_alpha_plot.csv", sep=";")
+fig = px.line(df, x="alpha", y="Style_MSE", color="Style_axis", markers=True)
+fig.show()
+
+temp = df.groupby('alpha').aggregate("mean").reset_index()
+fig = px.line(temp, x="alpha", y=["Style_MSE", "coverage_error", "precision"], markers=True)
+fig.show()
+
+
 # Pin GPU to be used to process local rank (one GPU per process)
 gpus = tf.config.experimental.list_physical_devices('GPU')
 for gpu in gpus:

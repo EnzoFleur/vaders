@@ -41,22 +41,9 @@ def read(file_path):
 def distilBertEncode(doc, maxLength=512, multiSamplageMinMaxLengthRatio=0.3, bertStartIndex=101, bertEndIndex=102):
     tokenizer = DistilBertTokenizer.from_pretrained(os.path.join("..","distilBERT", "distilbert-base-uncased"), local_files_only=True)
     
-    doc = tokenizer.encode(doc, add_special_tokens=False)
+    doc = tokenizer.encode(doc, add_special_tokens=True, truncation=True, max_length=512, padding=True)
 
-    parts = chunks(doc, (maxLength - 2))
-    parts = parts[:4]
-    parts = [[bertStartIndex] + part + [bertEndIndex] for part in parts]
-
-    if len(parts) > 1 and len(parts[-1]) < int(maxLength * multiSamplageMinMaxLengthRatio):
-        parts = parts[:-1]
-
-    # We pad the last part:
-    parts[-1] = parts[-1] + [0] * (maxLength - len(parts[-1]))
-    # We check the length of each part:
-    for part in parts:
-        assert len(part) == maxLength
-
-    return parts
+    return doc
 
 class DeepStyle(tf.keras.Model):
     def __init__(self,nba):
@@ -69,63 +56,44 @@ class DeepStyle(tf.keras.Model):
         self.dropout = layers.Dropout(0.1)
         self.classifier = layers.Dense(nba)
         
-    def encode_doc(self, text, part_mask):
-        batch_size, n_parts, r = text.shape
-        hidden_full = []
+    def encode_doc(self, text):
+        hidden_state = self.encoder(text)[0][:,0]
 
-        for b in range(batch_size):
-            mask = tf.reduce_sum(part_mask[b])
-            hidden_state = self.encoder(text[b,:tf.cast(mask, np.int32),:])[0][:,0]
-            hidden_full.append(tf.math.reduce_sum(hidden_state, axis=0)/tf.cast(mask, np.float32))
+        return hidden_state
 
-        return tf.stack(hidden_full)
+    def encode_author(self, text):
+        hidden_state = self.encoder(text)[0][:,0]
 
-    def encode_author(self, text, part_mask):
-        batch_size, n_parts, r = text.shape
-        hidden_full = []
+        return tf.math.reduce_mean((hidden_state), axis=0)
 
-        for b in range(batch_size):
-            mask = tf.reduce_sum(part_mask[b])
-            hidden_state = self.encoder(text[b,:tf.cast(mask, np.int32),:])[0][:,0]
-            hidden_full.append(tf.math.reduce_sum(hidden_state, axis=0)/tf.cast(mask, np.float32))
+    def call(self, text, training=None):
 
-        return tf.math.reduce_mean(tf.stack(hidden_full), axis=0)
+        hidden_state = self.encoder(text)[0][:,0]
 
-    def call(self, text, part_mask, training=None):
-
-        batch_size, n_parts, r = text.shape
-        hidden_full = []
-
-        for b in range(batch_size):
-            mask = tf.reduce_sum(part_mask[b])
-            hidden_state = self.encoder(text[b,:tf.cast(mask, np.int32),:])[0][:,0]
-            hidden_full.append(tf.math.reduce_sum(hidden_state, axis=0)/tf.cast(mask, np.float32))
-
-        output = self.dropout(tf.stack(hidden_full))
+        output = self.dropout(hidden_state)
 
         output = self.classifier(output)
 
         return output
 
-def compute_loss(model, documents, part_mask, pairs):
+def compute_loss(model, documents, mask, pairs):
     
     i,j = tf.split(pairs, 2, 1)
     i = tf.squeeze(i, axis=1)
     y_true = tf.one_hot(tf.squeeze(j, axis=1), depth = model.nba)
 
-    doc_tok = tf.convert_to_tensor(documents[i.numpy()], dtype=np.int32)
-    mask_tok = tf.convert_to_tensor(part_mask[i.numpy()], dtype=np.int32)
+    doc_tok = {'input_ids':documents[i.numpy()], 'attention_mask': mask[i.numpy()]}
 
-    y_pred = model(doc_tok, mask_tok, training=True)
+    y_pred = model(doc_tok, training=True)
     loss = tf.math.reduce_sum(tf.nn.softmax_cross_entropy_with_logits(logits=y_pred, labels=y_true))
 
     return loss
     
-def compute_apply_gradients(model, documents, part_mask, pairs, optimizer):
+def compute_apply_gradients(model, documents, mask, pairs, optimizer):
     
     with tf.GradientTape() as tape:
 
-        loss = compute_loss(model, documents, part_mask, pairs)
+        loss = compute_loss(model, documents, mask, pairs)
         
     gradients = tape.gradient(loss, model.trainable_variables)
     
@@ -153,11 +121,11 @@ if __name__ == "__main__":
 
     ############# Data ################
     # data_dir = "C:\\Users\\EnzoT\\Documents\\datasets\\gutenberg"
-    # batch_size = 128
-    # epochs=100
+    # batch_size = 5
+    # epochs=5
 
     authors = sorted([a for a in os.listdir(os.path.join(data_dir)) if os.path.isdir(os.path.join(data_dir, a))])
-    encoded_doc = []
+    documents = []
     doc2aut = {}
     id_docs = []
     part_mask = []
@@ -169,25 +137,23 @@ if __name__ == "__main__":
         for doc in docs:
             doc2aut[doc.replace(".txt", "")] = author
             content = read(os.path.join(data_dir, author, doc))
-            tf_content = tf.convert_to_tensor(distilBertEncode(content))
-            part_mask.append(len(tf_content))
-            encoded_doc.append(tf_content)
-            
+            # tf_content = tf.convert_to_tensor(distilBertEncode(content))
+            documents.append(content)
+
+    tokenizer = DistilBertTokenizer.from_pretrained(os.path.join("..","distilBERT", "distilbert-base-uncased"), local_files_only=True)
+    
+    documents = tokenizer(documents, add_special_tokens=True, truncation=True, max_length=512, padding='longest')
+
+    mask = np.vstack(documents.attention_mask)
+    documents = np.vstack(documents.input_ids)
+
     aut2id = dict(zip(authors, list(range(len(authors)))))
     doc2id = dict(zip(id_docs, list(range(len(id_docs)))))
 
     nd = len(doc2id)
     na = len(aut2id)
     
-    maxparts = max([len(i) for i in encoded_doc])
-
-    tf_documents = np.zeros((nd, maxparts, 512), dtype=np.int32)
-
-    for i, (tens, part) in enumerate(zip(encoded_doc, part_mask)):
-        tf_documents[i,:part,:] = tens.numpy()
-
-    part_mask = [[*[1]*i,*[0]*(maxparts-i)] for i in part_mask]
-    part_mask = np.array(part_mask, dtype=np.int32)
+    documents = np.vstack(documents)
 
     di2ai = {doc2id[d]: aut2id[a] for d,a in doc2aut.items()}
 
@@ -224,19 +190,18 @@ if __name__ == "__main__":
     print("Training the model")
     for epoch in range(1, epochs + 1):
 
-        f_loss = compute_loss(model, tf_documents, part_mask, pairs)
+        f_loss = compute_loss(model, documents, pairs)
         print("[%d/%d]  F-loss : %.3f" % (epoch, epochs, f_loss), flush=True)
         
         for pairs in tqdm(train_data):
-            compute_apply_gradients(model, tf_documents, part_mask, pairs, optimizer)
+            compute_apply_gradients(model, documents, part_mask, pairs, optimizer)
 
         if epoch % 5 == 0:
             aut_emb = []
             for i in range(model.nba):
                 books = np.array(di2ai_df_train[di2ai_df_train.authors==i].documents)
-                doc_tok = tf.convert_to_tensor(tf_documents[books], dtype=np.int32)
-                mask_tok = tf.convert_to_tensor(part_mask[books], dtype=np.int32)
-                aut_emb.append(model.encode_author(doc_tok, mask_tok).numpy()) 
+                doc_tok = {'input_ids':documents[books], 'attention_mask': mask[books]}
+                aut_emb.append(model.encode_author(doc_tok).numpy()) 
 
             aut_emb = np.vstack(aut_emb)
 
@@ -246,14 +211,12 @@ if __name__ == "__main__":
             for i in tqdm(range(nb)): 
                 start = (i*split ) 
                 stop = start + split
-                doc_tok = tf.convert_to_tensor(tf_documents[doc_tp[start:stop]], dtype=np.int32)
-                mask_tok = tf.convert_to_tensor(part_mask[doc_tp[start:stop]], dtype=np.int32)
-                doc_emb = model.encode_doc(doc_tok, mask_tok) 
+                doc_tok = {'input_ids':documents[start:stop], 'attention_mask': mask[start:stop]}
+                doc_emb = model.encode_doc(doc_tok) 
                 out.append(doc_emb)
 
-            doc_tok = tf.convert_to_tensor(tf_documents[doc_tp[((i+1)*split)::]], dtype=np.int32)
-            mask_tok = tf.convert_to_tensor(part_mask[doc_tp[((i+1)*split)::]], dtype=np.int32)
-            doc_emb,_ = model.encode_doc(doc_tok, mask_tok)                                 
+            doc_tok = {'input_ids':documents[doc_tp[((i+1)*split)::]], 'attention_mask': mask[doc_tp[((i+1)*split)::]]}
+            doc_emb = model.encode_doc(doc_tok)                                 
             out.append(doc_emb)
             doc_emb = np.vstack(out)
 
