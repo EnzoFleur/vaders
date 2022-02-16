@@ -44,15 +44,13 @@ def distilBertEncode(doc, maxLength=512, multiSamplageMinMaxLengthRatio=0.3, ber
     doc = tokenizer.encode(doc, add_special_tokens=False)
 
     parts = chunks(doc, (maxLength - 2))
+    parts = parts[:4]
     parts = [[bertStartIndex] + part + [bertEndIndex] for part in parts]
-
-    # input_mask = [[1]*maxLength for i in parts]
 
     if len(parts) > 1 and len(parts[-1]) < int(maxLength * multiSamplageMinMaxLengthRatio):
         parts = parts[:-1]
 
     # We pad the last part:
-    # input_mask.append([*[1]*len(parts[-1]), *[0]*(maxLength - len(parts[-1]))])
     parts[-1] = parts[-1] + [0] * (maxLength - len(parts[-1]))
     # We check the length of each part:
     for part in parts:
