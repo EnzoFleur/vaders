@@ -27,9 +27,6 @@ def chunksYielder(l, n):
 	for i in range(0, len(l), n):
 		yield l[i:i + n]
 
-tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased', cache_dir=os.path.join("..","distilBERT"))
-model = TFDistilBertModel.from_pretrained(os.path.join("..","distilBERT", "distilbert-base-uncased"), local_files_only=True)
-
 ############# Text Reader ###############
 def clean_str(string):
     string= re.sub(r"[^A-Za-z0-9!\"\£\€#$%\&\’'()\*\+,\-.\/:;\<\=\>?\@[\]\^\_`{\|}\~\n]", " ", string)
