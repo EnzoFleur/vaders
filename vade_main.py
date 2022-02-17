@@ -66,7 +66,7 @@ if __name__ == "__main__":
                         help='Number of negative pairs to sample')
     parser.add_argument('-lr','--learningrate', default=1e-3, type=float,
                         help='Learning rate')
-    parser.add_argument('-n','--name', default='', type=str,
+    parser.add_argument('-s','--surname', default='', type=str,
                         help='name')
     args = parser.parse_args()
 
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     beta = args.beta
     epochs = args.epochs
     batch_size = args.batchsize
-    name=args.name
+    name=args.surname
 
     encoder = args.encoder
     alpha = args.alpha
