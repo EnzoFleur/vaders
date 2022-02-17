@@ -189,9 +189,16 @@ if __name__ == "__main__":
 
     result = []
     pairs = next(iter(train_data))
+    features = pd.read_csv(os.path.join("data", "gutenberg", "features", "features.csv"), sep=";")
 
     print("Training the model")
     for epoch in range(1, epochs + 1):
+
+        if epoch > 5:
+            optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4)
+
+        if epoch > 15:
+            optimizer = tf.keras.optimizers.Adam(learning_rate=1e-5)
 
         f_loss = compute_loss(model, documents, mask, pairs)
         print("[%d/%d]  F-loss : %.3f" % (epoch, epochs, f_loss), flush=True)
@@ -214,12 +221,12 @@ if __name__ == "__main__":
             for i in tqdm(range(nb)): 
                 start = (i*split ) 
                 stop = start + split
-                doc_tok = {'input_ids':documents[start:stop], 'attention_mask': mask[start:stop]}
+                doc_tok = {'input_ids':documents[doc_tp[start:stop]], 'attention_mask': mask[doc_tp[start:stop]]}
                 doc_emb = model.encode_doc(doc_tok) 
                 out.append(doc_emb)
 
             doc_tok = {'input_ids':documents[doc_tp[((i+1)*split)::]], 'attention_mask': mask[doc_tp[((i+1)*split)::]]}
-            doc_emb = model.encode_doc(doc_tok)                                 
+            doc_emb = model.encode_doc(doc_tok)                                
             out.append(doc_emb)
             doc_emb = np.vstack(out)
 
@@ -233,9 +240,11 @@ if __name__ == "__main__":
             print("coverage, precision")
             print(str(round(ce,2)) + ", "+ str(round(lr,2)))
 
+        if epoch % 10 == 0:
+            res_df = style_embedding_evaluation(aut_emb, features.groupby("author").mean().reset_index(), n_fold=10)
+            print(res_df)
     if not os.path.isdir(os.path.join("results",method)):
         os.mkdir(os.path.join("results",method))
  
-    features = pd.read_csv(os.path.join("data", "gutenberg", "features", "features.csv"), sep=";")
     res_df = style_embedding_evaluation(aut_emb, features.groupby("author").mean().reset_index(), n_fold=10)
     res_df.to_csv(os.path.join("results", method, "style_%s.csv" % method), sep=";")
