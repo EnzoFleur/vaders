@@ -66,6 +66,8 @@ if __name__ == "__main__":
                         help='Number of negative pairs to sample')
     parser.add_argument('-lr','--learningrate', default=1e-3, type=float,
                         help='Learning rate')
+    parser.add_argument('-n','--name', default='', type=str,
+                        help='name')
     args = parser.parse_args()
 
     data_dir = args.dataset
@@ -74,6 +76,7 @@ if __name__ == "__main__":
     beta = args.beta
     epochs = args.epochs
     batch_size = args.batchsize
+    name=args.name
 
     encoder = args.encoder
     alpha = args.alpha
@@ -95,9 +98,9 @@ if __name__ == "__main__":
     # epochs=100
 
     if lr == 1e-3:
-        method = "%s_%s_%s_%6f_%3f_%d" % (loss,encoder, dataset, beta, alpha, negpairs)
+        method = "%s_%s_%s_%6f_%3f_%d_%s" % (loss,encoder, dataset, beta, alpha, negpairs, name)
     else:
-        method = "LR01_%s_%s_%s_%6f_%3f_%d" % (loss,encoder, dataset, beta, alpha, negpairs)
+        method = "LR01_%s_%s_%s_%6f_%3f_%d_%s" % (loss,encoder, dataset, beta, alpha, negpairs, name)
         
     if not os.path.isdir(os.path.join("results", method)):
         os.mkdir(os.path.join("results", method))

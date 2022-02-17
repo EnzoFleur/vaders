@@ -110,14 +110,17 @@ if __name__ == "__main__":
                         help='Epochs')
     parser.add_argument('-n','--negpairs', default=1, type=int,
                         help='Number of negative pairs to sample')
+    parser.add_argument('-s','--surname', default='', type=str,
+                        help='name')
     args = parser.parse_args()
 
     data_dir = args.dataset
     epochs = args.epochs
     batch_size = args.batchsize
     negpairs = args.negpairs
+    name=args.surname
 
-    method = "deep_style_%d" % epochs
+    method = "deep_style_%s" % name
 
     ############# Data ################
     # data_dir = "C:\\Users\\EnzoT\\Documents\\datasets\\gutenberg"
