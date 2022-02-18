@@ -122,10 +122,12 @@ if __name__ == "__main__":
 
     method = "deep_style_%s" % name
 
-    ############# Data ################
+    # ############# Data ################
     # data_dir = "C:\\Users\\EnzoT\\Documents\\datasets\\gutenberg"
     # batch_size = 5
     # epochs=5
+    # negpairs=2
+    # name='slip'
 
     authors = sorted([a for a in os.listdir(os.path.join(data_dir)) if os.path.isdir(os.path.join(data_dir, a))])
     documents = []
@@ -133,7 +135,7 @@ if __name__ == "__main__":
     id_docs = []
     part_mask = []
 
-    for author in tqdm(authors):
+    for author in tqdm(authors[:10]):
         docs = sorted([doc for doc in os.listdir(os.path.join(data_dir, author))])
         id_docs = [*id_docs, *[doc.replace(".txt", "") for doc in docs]]
 
