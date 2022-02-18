@@ -193,6 +193,39 @@ if __name__ == "__main__":
     pairs = next(iter(train_data))
     features = pd.read_csv(os.path.join("data", "gutenberg", "features", "features.csv"), sep=";")
 
+    aut_emb = []
+    for i in range(model.nba):
+        books = np.array(di2ai_df_train[di2ai_df_train.authors==i].documents)
+        doc_tok = {'input_ids':documents[books], 'attention_mask': mask[books]}
+        aut_emb.append(model.encode_author(doc_tok).numpy()) 
+
+    aut_emb = np.vstack(aut_emb)
+
+    split = 256
+    nb = int(len(doc_tp) / split )
+    out= []
+    for i in tqdm(range(nb)): 
+        start = (i*split ) 
+        stop = start + split
+        doc_tok = {'input_ids':documents[doc_tp[start:stop]], 'attention_mask': mask[doc_tp[start:stop]]}
+        doc_emb = model.encode_doc(doc_tok) 
+        out.append(doc_emb)
+
+    doc_tok = {'input_ids':documents[doc_tp[((i+1)*split)::]], 'attention_mask': mask[doc_tp[((i+1)*split)::]]}
+    doc_emb = model.encode_doc(doc_tok)                                
+    out.append(doc_emb)
+    doc_emb = np.vstack(out)
+
+    print("Evaluation Aut id")
+
+    aa = normalize(aut_emb, axis=1)
+    dd = normalize(doc_emb, axis=1)
+    y_score = normalize( dd @ aa.transpose(),norm="l1")
+    ce = coverage_error(aut_doc_test[doc_tp,:], y_score)
+    lr = label_ranking_average_precision_score(aut_doc_test[doc_tp,:], y_score)*100
+    print("Dumb test coverage, precision")
+    print(str(round(ce,2)) + ", "+ str(round(lr,2)))
+
     print("Training the model")
     for epoch in range(1, epochs + 1):
 
