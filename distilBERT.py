@@ -135,7 +135,7 @@ if __name__ == "__main__":
     id_docs = []
     part_mask = []
 
-    for author in tqdm(authors[:10]):
+    for author in tqdm(authors):
         docs = sorted([doc for doc in os.listdir(os.path.join(data_dir, author))])
         id_docs = [*id_docs, *[doc.replace(".txt", "") for doc in docs]]
 
