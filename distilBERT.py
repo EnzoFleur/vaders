@@ -197,10 +197,10 @@ if __name__ == "__main__":
     for epoch in range(1, epochs + 1):
 
         if epoch > 5:
-            optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4)
+            optimizer.lr.assign(1e-4)
 
         if epoch > 15:
-            optimizer = tf.keras.optimizers.Adam(learning_rate=1e-5)
+            optimizer.lr.assign(1e-5)
 
         f_loss = compute_loss(model, documents, mask, pairs)
         print("[%d/%d]  F-loss : %.3f" % (epoch, epochs, f_loss), flush=True)
