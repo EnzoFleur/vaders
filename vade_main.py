@@ -84,7 +84,7 @@ if __name__ == "__main__":
     loss = args.loss
     lr = args.learningrate
 
-    ############# Data ################
+    # ############ Data ################
     # dataset = "gutenberg"
 
     # encoder="USE"
@@ -96,6 +96,8 @@ if __name__ == "__main__":
     # negpairs = 1
     # batch_size = 128
     # epochs=100
+    # lr=1e-3
+    # name="slip"
 
     if lr == 1e-3:
         method = "%s_%s_%s_%6f_%3f_%d_%s" % (loss,encoder, dataset, beta, alpha, negpairs, name)
@@ -147,7 +149,8 @@ if __name__ == "__main__":
     di2ai = {doc2id[d]: aut2id[a] for d,a in doc2aut.items()}
 
     print('Get features')
-    features = pd.read_csv(os.path.join("data", dataset, "features", "features.csv"), sep=";").drop(["author", 'needn\'t', 'couldn\'t', 'hasn\'t', 'mightn\'t', 'you\'ve', 'shan\'t', 'aren',
+    features = pd.read_csv(os.path.join("data", dataset, "features", "features.csv"), sep=";")
+    features = features.drop(["author", 'needn\'t', 'couldn\'t', 'hasn\'t', 'mightn\'t', 'you\'ve', 'shan\'t', 'aren',
         'weren\'t', 'mustn', 'shan', 'should\'ve', 'mightn', 'needn', 'hadn\'t',
         'aren\'t', 'hadn', 'that\'ll', '£', '€', '<', '\'', '^', '~'], axis=1).replace({"id":{k+".txt":v for k,v in doc2id.items()}}).sort_values("id", ascending=True)
     features = np.array(features.sort_values("id",ascending=True).drop("id", axis=1))
@@ -224,7 +227,7 @@ if __name__ == "__main__":
             compute_apply_gradients(model, documents, pairs, y, yf, optimizer)
         end_time = time.time()
 
-        if epoch % 5 == 0:
+        if epoch % 1 == 0:
             aut_emb = []
             for i in range(model.nba):
                 aut_emb.append(np.asarray(model.mean_author(i)))   

@@ -243,6 +243,188 @@ class AsaTgcn(layers.Layer):
 
         return output
 
+# class VADER(tf.keras.Model):
+#     def __init__(self,nba,r,doc_r,pl, encoder, beta = 1e-12,L=1, loss="CE", alpha=1/2):
+    
+#         super(VADER, self).__init__()
+    
+#         self.loss = loss
+#         self.alpha = alpha
+#         self.nba = nba
+#         self.r = r
+#         self.doc_r = doc_r
+#         self.pl = pl
+#         self.beta = beta
+#         self.L = L
+#         self.encoder = encoder
+
+#         self.a_authors = tf.Variable(tf.ones([1]),name = 'a_author',trainable = True)
+#         self.b_authors = tf.Variable(tf.ones([1]),name = 'b_author', trainable = True)       
+        
+#         if self.loss == "CE":
+#             self.a_features = tf.Variable(tf.ones([1]),name = 'a_features',trainable = True)
+#             self.b_features = tf.Variable(tf.ones([1]),name = 'b_features', trainable = True)
+#         # elif self.loss == "L2":
+#         #     self.l2mlp = MLP(300,300)
+  
+#         if encoder == "DAN":
+#             self.doc_mean = DAN(self.r, self.r)
+#             self.doc_var = DAN(self.r, self.r)
+#         elif encoder == "USE":
+#             self.doc_encoder = USE_layer
+#             self.doc_mean = MLP(512, r) 
+#             self.doc_var =  MLP(512, r)
+#         elif encoder == "GNN":
+#             self.doc_encoder = AsaTgcn(self.r, hidden_size=512)
+#             self.doc_mean = MLP(self.r, self.r)
+#             self.doc_var = MLP(self.r, self.r)
+#         elif encoder == "BERT":
+#             self.doc_encoder = BERT_layer
+#             self.doc_mean = DAN(768, self.r)
+#             self.doc_var =  DAN(768, self.r)
+        
+#         self.mean_author = layers.Embedding(self.nba,self.r,tf.keras.initializers.RandomNormal(mean=0.0, stddev=1, seed=None),
+#                                                 name = 'aut_mean')
+        
+#         self.logvar_author = layers.Embedding(self.nba,self.r,tf.keras.initializers.RandomUniform(minval=-0.5, maxval=0.5),
+#                                                 name = 'aut_var')
+    
+#     def reparameterize(self, mean, logvar):
+        
+#         eps = tf.random.normal(shape=(mean.shape))
+            
+#         return eps * tf.math.sqrt(tf.math.exp(logvar)) + mean
+
+#     def logistic_classifier_features(self, features, doc_emb, apply_sigmoid=True):
+
+#         distance = tf.sqrt(tf.reduce_sum(tf.pow(features - doc_emb, 2), 1))
+
+#         logits = tf.math.add(tf.multiply(-tf.math.exp(self.a_features),distance),self.b_features)
+
+#         if apply_sigmoid:
+#             logits = tf.sigmoid(logits)
+            
+#         return logits
+
+#     def logistic_classifier(self, x, apply_sigmoid=True):
+
+#         logits = tf.math.add(tf.multiply(-tf.math.exp(self.a_authors),x),self.b_authors)
+
+#         if apply_sigmoid:
+#             logits = tf.sigmoid(logits)
+            
+#         return logits
+
+#     def encode_doc(self,doc_tok,doc_mask, training=True):
+
+#         if self.encoder == "DAN":
+#             dmean = self.doc_mean(doc_tok, doc_mask, training=training)
+#             dvar = self.doc_var(doc_tok, doc_mask, training=training)
+#         elif self.encoder == "USE":
+#             doc_emb = self.doc_encoder(doc_tok, training=training)
+#             dmean = self.doc_mean(doc_emb, training=training)
+#             dvar = self.doc_var(doc_emb, training=training)
+#         elif self.encoder == "BERT":
+#             doc_tok = BERT_preprocess(doc_tok)
+#             doc_mask = tf.cast(doc_tok['input_mask'], dtype=tf.float32)
+#             doc_emb = self.doc_encoder(doc_tok, training=training)["sequence_output"]
+#             dmean = self.doc_mean(doc_emb, doc_mask, training=training)
+#             dvar = self.doc_var(doc_emb, doc_mask, training=training)
+#         elif self.encoder == "GNN":
+#             batch_size, _, seq_len, encode_size = doc_tok.shape
+
+#             doc_mask = tf.ones((batch_size, seq_len))
+#             text = doc_tok[:,0,:,:]
+#             dep_value_matrix = doc_tok[:,1,:,256:512]
+#             dep_adj_matrix = doc_tok[:,1,:,:256]
+
+#             doc_emb = self.doc_encoder(text, doc_mask, dep_adj_matrix, dep_value_matrix)
+#             dmean = self.doc_mean(doc_emb, training=training)
+#             dvar = self.doc_var(doc_emb, training=training)
+
+#         return dmean,dvar
+
+# def compute_loss(model, documents, pairs, y, yf, training=True):
+    
+#     y_authors, y_features = tf.split(tf.cast(y, dtype=np.float32), [1, y.shape[1] - 1], 1)
+
+#     y_authors = tf.squeeze(y_authors)
+#     y_features = tf.squeeze(y_features)
+
+#     i,j = tf.split(pairs, 2, 1)
+
+#     if model.encoder == "GNN":
+#         doc_emb = documents[tf.squeeze(i, axis=1),:,:,:]
+#     else:
+#         doc_emb = documents[i][:,0]
+#     doc_mask = None
+
+#     mean_aut = tf.squeeze(model.mean_author(j))
+#     logvar_aut = tf.squeeze(model.logvar_author(j))
+
+#     doc_mean,doc_var = model.encode_doc(doc_emb,doc_mask, training=training)
+
+#     ## Soft contrastive #####
+
+#     feature_loss = 0
+#     author_loss = 0
+
+#     if model.loss == "L2":
+#         # Classic and basic bread and butter L2 loss
+#         feature_loss += model.L * tf.reduce_sum((tf.nn.l2_loss(doc_mean-yf)))
+
+#     for draw in range(model.L):
+
+#         doc_emb = model.reparameterize(doc_mean, doc_var)
+#         aut_emb = model.reparameterize(mean_aut, logvar_aut)
+
+#         if model.loss == "CE":
+#             ## Bring closer document embedding and stylistic features
+#             probs = model.logistic_classifier_features(yf, doc_emb, apply_sigmoid=False)
+
+#             cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=probs, labels=y_features)
+
+#             feature_loss += tf.reduce_sum(cross_ent)
+
+#         ## Bring closer document and author embeddings
+#         distance = tf.sqrt(tf.reduce_sum(tf.pow(aut_emb - doc_emb, 2), 1))
+
+#         probs = model.logistic_classifier(distance, apply_sigmoid=False)
+
+#         cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=probs, labels=y_authors)
+
+#         author_loss += tf.reduce_sum(cross_ent)
+        
+#     feature_loss *= model.alpha/model.L * tf.stop_gradient(author_loss)/tf.stop_gradient(feature_loss)
+#     author_loss *= (1-model.alpha)/model.L
+
+#     ## Info Loss ####
+
+#     KL_loss_aut_emb = 0.5 * tf.reduce_sum(tf.square(mean_aut)
+#                                     + tf.math.exp(logvar_aut) - logvar_aut - 1)
+#     KL_loss_aut_emb += 0.5 * tf.reduce_sum(tf.square(doc_mean)
+#                                     + tf.math.exp(doc_var) - doc_var - 1)
+
+#     BETA = model.beta
+
+#     info_loss = BETA * KL_loss_aut_emb
+
+#     if not training:
+#         return feature_loss, author_loss, info_loss
+
+#     return feature_loss + author_loss + info_loss
+    
+# def compute_apply_gradients(model, documents, pairs, y, yf, optimizer):
+    
+#     with tf.GradientTape() as tape:
+
+#         loss = compute_loss(model, documents, pairs, y, yf)
+        
+#     gradients = tape.gradient(loss, model.trainable_variables)
+    
+#     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+
 class VADER(tf.keras.Model):
     def __init__(self,nba,r,doc_r,pl, encoder, beta = 1e-12,L=1, loss="CE", alpha=1/2):
     
@@ -269,31 +451,16 @@ class VADER(tf.keras.Model):
   
         if encoder == "DAN":
             self.doc_mean = DAN(self.r, self.r)
-            self.doc_var = DAN(self.r, self.r)
         elif encoder == "USE":
             self.doc_encoder = USE_layer
             self.doc_mean = MLP(512, r) 
-            self.doc_var =  MLP(512, r)
-        elif encoder == "GNN":
-            self.doc_encoder = AsaTgcn(self.r, hidden_size=512)
-            self.doc_mean = MLP(self.r, self.r)
-            self.doc_var = MLP(self.r, self.r)
-        elif encoder == "BERT":
-            self.doc_encoder = BERT_layer
-            self.doc_mean = DAN(768, self.r)
-            self.doc_var =  DAN(768, self.r)
         
         self.mean_author = layers.Embedding(self.nba,self.r,tf.keras.initializers.RandomNormal(mean=0.0, stddev=1, seed=None),
                                                 name = 'aut_mean')
         
         self.logvar_author = layers.Embedding(self.nba,self.r,tf.keras.initializers.RandomUniform(minval=-0.5, maxval=0.5),
                                                 name = 'aut_var')
-    
-    def reparameterize(self, mean, logvar):
-        
-        eps = tf.random.normal(shape=(mean.shape))
-            
-        return eps * tf.math.sqrt(tf.math.exp(logvar)) + mean
+
 
     def logistic_classifier_features(self, features, doc_emb, apply_sigmoid=True):
 
@@ -319,30 +486,13 @@ class VADER(tf.keras.Model):
 
         if self.encoder == "DAN":
             dmean = self.doc_mean(doc_tok, doc_mask, training=training)
-            dvar = self.doc_var(doc_tok, doc_mask, training=training)
         elif self.encoder == "USE":
             doc_emb = self.doc_encoder(doc_tok, training=training)
             dmean = self.doc_mean(doc_emb, training=training)
-            dvar = self.doc_var(doc_emb, training=training)
-        elif self.encoder == "BERT":
-            doc_tok = BERT_preprocess(doc_tok)
-            doc_mask = tf.cast(doc_tok['input_mask'], dtype=tf.float32)
-            doc_emb = self.doc_encoder(doc_tok, training=training)["sequence_output"]
-            dmean = self.doc_mean(doc_emb, doc_mask, training=training)
-            dvar = self.doc_var(doc_emb, doc_mask, training=training)
-        elif self.encoder == "GNN":
-            batch_size, _, seq_len, encode_size = doc_tok.shape
 
-            doc_mask = tf.ones((batch_size, seq_len))
-            text = doc_tok[:,0,:,:]
-            dep_value_matrix = doc_tok[:,1,:,256:512]
-            dep_adj_matrix = doc_tok[:,1,:,:256]
+        doc_var = None
 
-            doc_emb = self.doc_encoder(text, doc_mask, dep_adj_matrix, dep_value_matrix)
-            dmean = self.doc_mean(doc_emb, training=training)
-            dvar = self.doc_var(doc_emb, training=training)
-
-        return dmean,dvar
+        return dmean, doc_var
 
 def compute_loss(model, documents, pairs, y, yf, training=True):
     
@@ -353,16 +503,12 @@ def compute_loss(model, documents, pairs, y, yf, training=True):
 
     i,j = tf.split(pairs, 2, 1)
 
-    if model.encoder == "GNN":
-        doc_emb = documents[tf.squeeze(i, axis=1),:,:,:]
-    else:
-        doc_emb = documents[i][:,0]
+    doc_emb = documents[i][:,0]
     doc_mask = None
 
-    mean_aut = tf.squeeze(model.mean_author(j))
-    logvar_aut = tf.squeeze(model.logvar_author(j))
+    aut_emb = tf.squeeze(model.mean_author(j))
 
-    doc_mean,doc_var = model.encode_doc(doc_emb,doc_mask, training=training)
+    doc_emb, _ = model.encode_doc(doc_emb,doc_mask, training=training)
 
     ## Soft contrastive #####
 
@@ -371,43 +517,31 @@ def compute_loss(model, documents, pairs, y, yf, training=True):
 
     if model.loss == "L2":
         # Classic and basic bread and butter L2 loss
-        feature_loss += model.L * tf.reduce_sum((tf.nn.l2_loss(doc_mean-yf)))
+        feature_loss += model.L * tf.reduce_sum((tf.nn.l2_loss(doc_emb-yf)))
 
-    for draw in range(model.L):
+    if model.loss == "CE":
+        ## Bring closer document embedding and stylistic features
+        probs = model.logistic_classifier_features(yf, doc_emb, apply_sigmoid=False)
 
-        doc_emb = model.reparameterize(doc_mean, doc_var)
-        aut_emb = model.reparameterize(mean_aut, logvar_aut)
+        cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=probs, labels=y_features)
 
-        if model.loss == "CE":
-            ## Bring closer document embedding and stylistic features
-            probs = model.logistic_classifier_features(yf, doc_emb, apply_sigmoid=False)
+        feature_loss += tf.reduce_sum(cross_ent)
 
-            cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=probs, labels=y_features)
+    ## Bring closer document and author embeddings
+    distance = tf.sqrt(tf.reduce_sum(tf.pow(aut_emb - doc_emb, 2), 1))
 
-            feature_loss += tf.reduce_sum(cross_ent)
+    probs = model.logistic_classifier(distance, apply_sigmoid=False)
 
-        ## Bring closer document and author embeddings
-        distance = tf.sqrt(tf.reduce_sum(tf.pow(aut_emb - doc_emb, 2), 1))
+    cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=probs, labels=y_authors)
 
-        probs = model.logistic_classifier(distance, apply_sigmoid=False)
-
-        cross_ent = tf.nn.sigmoid_cross_entropy_with_logits(logits=probs, labels=y_authors)
-
-        author_loss += tf.reduce_sum(cross_ent)
+    author_loss += tf.reduce_sum(cross_ent)
         
     feature_loss *= model.alpha/model.L * tf.stop_gradient(author_loss)/tf.stop_gradient(feature_loss)
     author_loss *= (1-model.alpha)/model.L
 
-    ## Info Loss ####
-
-    KL_loss_aut_emb = 0.5 * tf.reduce_sum(tf.square(mean_aut)
-                                    + tf.math.exp(logvar_aut) - logvar_aut - 1)
-    KL_loss_aut_emb += 0.5 * tf.reduce_sum(tf.square(doc_mean)
-                                    + tf.math.exp(doc_var) - doc_var - 1)
-
     BETA = model.beta
 
-    info_loss = BETA * KL_loss_aut_emb
+    info_loss = 0
 
     if not training:
         return feature_loss, author_loss, info_loss
