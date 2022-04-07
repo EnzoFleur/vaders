@@ -264,8 +264,8 @@ class VADER(tf.keras.Model):
         if self.loss == "CE":
             self.a_features = tf.Variable(tf.ones([1]),name = 'a_features',trainable = True)
             self.b_features = tf.Variable(tf.ones([1]),name = 'b_features', trainable = True)
-        elif self.loss == "L2":
-            self.l2mlp = MLP(300,300)
+        # elif self.loss == "L2":
+        #     self.l2mlp = MLP(300,300)
   
         if encoder == "DAN":
             self.doc_mean = DAN(self.r, self.r)
