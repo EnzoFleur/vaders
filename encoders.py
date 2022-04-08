@@ -536,8 +536,7 @@ def compute_loss(model, documents, pairs, y, yf, training=True):
 
     author_loss += tf.reduce_sum(cross_ent)
         
-    feature_loss *= model.alpha/model.L 
-    # * tf.stop_gradient(author_loss)/tf.stop_gradient(feature_loss)
+    feature_loss *= model.alpha/model.L * tf.stop_gradient(author_loss)/tf.stop_gradient(feature_loss)
     author_loss *= (1-model.alpha)/model.L
 
     BETA = model.beta
