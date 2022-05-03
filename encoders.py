@@ -8,6 +8,7 @@ from tensorflow.keras.initializers import Constant
 
 import tensorflow_hub as hub
 
+
 def make_bert_preprocess_model(sentence_features, tfhub_handle_preprocess, seq_length=512):
   """Returns Model mapping string features to BERT inputs.
 
