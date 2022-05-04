@@ -227,7 +227,7 @@ if __name__ == "__main__":
             compute_apply_gradients(model, documents, pairs, y, yf, optimizer)
         end_time = time.time()
 
-        if epoch % 1 == 0:
+        if epoch % 3 == 0:
             aut_emb = []
             for i in range(model.nba):
                 aut_emb.append(np.asarray(model.mean_author(i)))   
@@ -258,8 +258,9 @@ if __name__ == "__main__":
             dd = normalize(doc_emb[np.sort(doc_tp)], axis=1)
             y_score = normalize( dd @ aa.transpose(),norm="l1")
             ce = coverage_error(aut_doc_test[doc_tp,:], y_score)
-            print("coverage Cosine",flush=True)
-            print(str(round(ce,2)))
+            lr = label_ranking_average_precision_score(aut_doc_test[doc_tp,:], y_score)*100
+            print("coverage, precision", flush=True)
+            print(str(round(ce,2)) + ", "+ str(round(lr,2)))
             result.append(ce)
 
             model.save_weights(os.path.join("results", method, "%s.ckpt" % method))
