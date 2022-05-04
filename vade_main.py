@@ -227,7 +227,7 @@ if __name__ == "__main__":
             compute_apply_gradients(model, documents, pairs, y, yf, optimizer)
         end_time = time.time()
 
-        if epoch % 3 == 0:
+        if epoch % 1 == 0:
             aut_emb = []
             for i in range(model.nba):
                 aut_emb.append(np.asarray(model.mean_author(i)))   
