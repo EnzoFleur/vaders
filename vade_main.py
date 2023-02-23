@@ -20,7 +20,7 @@ from tensorflow.keras.initializers import Constant
 from sklearn.preprocessing import normalize, StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
-from sklearn.metrics import coverage_error,label_ranking_average_precision_score
+from sklearn.metrics import coverage_error,label_ranking_average_precision_score, accuracy_score
 
 from encoders import VADER, compute_apply_gradients, compute_loss
 from regressor import style_embedding_evaluation
@@ -87,17 +87,17 @@ if __name__ == "__main__":
     # ############ Data ################
     # dataset = "gutenberg"
 
-    # encoder="USE"
+    # encoder="features"
     # data_dir = "C:\\Users\\EnzoT\\Documents\\datasets\\gutenberg"
     # res_dir = "C:\\Users\\EnzoT\\Documents\\results"
     # beta=1e-12
     # alpha=1/2
     # loss="CE"
-    # negpairs = 1
+    # negpairs = 10
     # batch_size = 128
     # epochs=100
     # lr=1e-3
-    # name="slip"
+    # name="features"
 
     if lr == 1e-3:
         method = "%s_%s_%s_%6f_%3f_%d_%s" % (loss,encoder, dataset, beta, alpha, negpairs, name)
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     if not os.path.isdir(os.path.join("results", method)):
         os.mkdir(os.path.join("results", method))
 
-    authors = sorted([a for a in os.listdir(os.path.join(data_dir)) if os.path.isdir(os.path.join(data_dir, a))])
+    authors = sorted([a for a in os.listdir(os.path.join(data_dir)) if os.path.isdir(os.path.join(data_dir, a))])[:10]
     documents = []
     doc2aut = {}
     id_docs = []
@@ -156,6 +156,8 @@ if __name__ == "__main__":
     features = np.array(features.sort_values("id",ascending=True).drop("id", axis=1))
     stdScale = StandardScaler()
     features = stdScale.fit_transform(features)
+
+    documents = features
 
     print("Build pairs")
     di2ai_df = pd.DataFrame([di2ai.keys(), di2ai.values()], index=['documents','authors']).T
@@ -216,8 +218,13 @@ if __name__ == "__main__":
     result = []
     pairs, yf, y = next(iter(train_data))
 
+    val_loss = 0.00
+    memory = []
+
     print("Training the model")
     for epoch in range(1, epochs + 1):
+        optimizer.learning_rate = lr
+        optimizer.lr = lr
 
         f_loss, a_loss, i_loss = compute_loss(model, documents, pairs, y, yf, training=False)
         print("[%d/%d]  F-loss : %.3f | A-loss : %.3f | I-loss : %.3f" % (epoch, epochs, f_loss, a_loss, i_loss), flush=True)
@@ -257,13 +264,22 @@ if __name__ == "__main__":
             aa = normalize(aut_emb, axis=1)
             dd = normalize(doc_emb[np.sort(doc_tp)], axis=1)
             y_score = normalize( dd @ aa.transpose(),norm="l1")
-            ce = coverage_error(aut_doc_test[doc_tp,:], y_score)
+            ce = coverage_error(aut_doc_test[doc_tp,:], y_score)/na*100
             lr = label_ranking_average_precision_score(aut_doc_test[doc_tp,:], y_score)*100
-            print("coverage, precision", flush=True)
-            print(str(round(ce,2)) + ", "+ str(round(lr,2)))
-            result.append(ce)
+            ac = accuracy_score(np.argmax(aut_doc_test[doc_tp], axis=1), np.argmax(y_score, axis=1)) *100
+            print("coverage, precision, accuracy", flush=True)
+            print(str(round(ce,2)) + ", "+ str(round(lr,2)) + ", "+ str(round(ac,2)))
+            result.append(ac)
 
-            model.save_weights(os.path.join("results", method, "%s.ckpt" % method))
+            if ac > val_loss:
+                val_loss = ac
+                memory.append(0)
+            else:
+                memory.append(1)
+                if memory[-2:] == [1,1]:
+                    lr = lr/5
+
+            # model.save_weights(os.path.join("results", method, "%s.ckpt" % method))
 
             np.save(os.path.join("results", method, "aut_%s.npy" % method), aut_emb)
             np.save(os.path.join("results", method, "aut_var_%s.npy" % method), aut_var)
@@ -300,12 +316,14 @@ if __name__ == "__main__":
     #################################################### Eval ##################################################
     print("Evaluation Aut id")
     y_score = normalize(normalize(doc_emb[doc_tp], axis=1) @ normalize(aut_emb, axis=1).transpose(),norm="l1")
-    ce = (coverage_error(aut_doc_test[doc_tp,:], y_score)/na)*100
+    ce = (coverage_error(aut_doc_test[doc_tp,:], y_score))/na*100
     lr = label_ranking_average_precision_score(aut_doc_test[doc_tp,:], y_score)*100
-    print("coverage, precision")
-    print(str(round(ce,2)) + ", "+ str(round(lr,2)))
+    ac = accuracy_score(np.argmax(aut_doc_test[doc_tp], axis=1), np.argmax(y_score, axis=1)) *100
+
+    print("coverage, precision, accuracy")
+    print(str(round(ce,2)) + ", "+ str(round(lr,2)) + ", "+ str(round(ac,2)))
     with open(os.path.join("results", method, "coverage_%s.txt" % method), "a+") as f:
-        f.write(method+" & "+str(round(ce,2)) + " & "+ str(round(lr,2)) + "\\\ \n")
+        f.write(method+" & "+str(round(ce,2)) + " & "+ str(round(lr,2)) + " & "+ str(round(ac,2)) + "\\\ \n")
 
     np.save(os.path.join("results", method, "aut_%s.npy" % method), aut_emb)
     np.save(os.path.join("results", method, "aut_var_%s.npy" % method), aut_var)

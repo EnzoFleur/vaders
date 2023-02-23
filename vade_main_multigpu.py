@@ -38,44 +38,48 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# Create figure with secondary y-axis
+
+df = pd.read_csv(".\\results\\df_alpha_plot.csv", sep=";")
+temp = df.groupby('alpha').aggregate("mean").reset_index()
+
 fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-# Add traces
-fig.add_trace(
-    go.Scatter(x=temp.alpha, y=temp.precision, name="LRAP"),
-    secondary_y=False,
+fig.add_trace(go.Scatter(x=temp.alpha, y=temp.precision, name="Accuracy"),
+    secondary_y=False
 )
+
+fig.add_trace(go.Scatter(x=list(temp.alpha)+list(temp.alpha)[::-1],
+                        y=list(temp.precision + temp.std_precision) + list(temp.precision -temp.std_precision)[::-1],
+                        fill='toself', mode='lines', fillcolor = 'rgba(0,100,255,0.2)',line=dict(color='rgba(255,255,255,0)'),
+                        hoverinfo="skip", showlegend=False), secondary_y=False)
 
 fig.add_trace(
     go.Scatter(x=temp.alpha, y=temp.Style_MSE, name="Style MSE"),
     secondary_y=True,
 )
 
-# fig.add_trace(
-#     go.Scatter(x=temp.alpha, y=temp.precision, name="Precision"),
-#     secondary_y=True,
-# )
+fig.add_trace(go.Scatter(x=list(temp.alpha)+list(temp.alpha)[::-1],
+                        y=list(temp.Style_MSE + temp.std_style) + list(temp.Style_MSE -temp.std_style)[::-1],
+                        fill='toself', mode='lines', fillcolor = 'rgba(0,100,80,0.2)',line=dict(color='rgba(255,255,255,0)'),
+                        hoverinfo="skip", showlegend=False), secondary_y=True)
 
-# Add figure title
 fig.update_layout(
     title_text="Authorship Attribution and Style scores as a function of α"
 )
 
-# Set x-axis title
 fig.update_xaxes(title_text="α parameter")
 
-# Set y-axes titles
 fig.update_yaxes(title_text="LRAP", secondary_y=False)
 fig.update_yaxes(title_text="Style MSE", secondary_y=True)
 
 fig.show()
 
+fig.write_html(".\\results\\alpha.html")
+
 df = pd.read_csv(".\\results\\df_alpha_plot.csv", sep=";")
 fig = px.line(df, x="alpha", y="Style_MSE", color="Style_axis", markers=True)
 fig.show()
 
-temp = df.groupby('alpha').aggregate("mean").reset_index()
 fig = px.line(temp, x="alpha", y=["Style_MSE", "coverage_error", "precision"], markers=True)
 fig.show()
 

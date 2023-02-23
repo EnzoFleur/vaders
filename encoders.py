@@ -281,6 +281,9 @@ class VADER(tf.keras.Model):
             self.doc_encoder = BERT_layer
             self.doc_mean = DAN(768, self.r)
             self.doc_var =  DAN(768, self.r)
+        elif encoder == "features":
+            self.doc_mean = MLP(self.r, self.r)
+            self.doc_var = MLP(self.r, self.r)
         
         self.mean_author = layers.Embedding(self.nba,self.r,tf.keras.initializers.RandomNormal(mean=0.0, stddev=1, seed=None),
                                                 name = 'aut_mean')
@@ -340,6 +343,9 @@ class VADER(tf.keras.Model):
             doc_emb = self.doc_encoder(text, doc_mask, dep_adj_matrix, dep_value_matrix)
             dmean = self.doc_mean(doc_emb, training=training)
             dvar = self.doc_var(doc_emb, training=training)
+        elif self.encoder == "features":
+            dmean = tf.squeeze(self.doc_mean(doc_tok, training=training))
+            dvar = tf.squeeze(self.doc_var(doc_tok, training=training))
 
         return dmean,dvar
 
@@ -354,6 +360,8 @@ def compute_loss(model, documents, pairs, y, yf, training=True):
 
     if model.encoder == "GNN":
         doc_emb = documents[tf.squeeze(i, axis=1),:,:,:]
+    elif model.encoder == "features":
+        doc_emb = documents[i]
     else:
         doc_emb = documents[i][:,0]
     doc_mask = None
