@@ -150,7 +150,7 @@ if __name__ == "__main__":
 
     print('Get features')
     features = pd.read_csv(os.path.join("data", dataset, "features", "features.csv"), sep=";")
-    features = features[features["author"].isin(authors)]
+    features = features[features["author"].isin(list(map(int,authors)))]
     features = features.drop(["author", 'needn\'t', 'couldn\'t', 'hasn\'t', 'mightn\'t', 'you\'ve', 'shan\'t', 'aren',
         'weren\'t', 'mustn', 'shan', 'should\'ve', 'mightn', 'needn', 'hadn\'t',
         'aren\'t', 'hadn', 'that\'ll', '£', '€', '<', '\'', '^', '~'], axis=1).replace({"id":{k+".txt":v for k,v in doc2id.items()}}).sort_values("id", ascending=True)
