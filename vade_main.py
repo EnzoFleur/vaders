@@ -216,16 +216,24 @@ if __name__ == "__main__":
 
     model = VADER(na,r,doc_r,max_l, encoder=encoder, beta=beta, L=10, alpha=alpha, loss=loss) 
 
+    def optimizer_custom_decay(optimizer, decay_rate):
+        #get the optimizer configuration dictionary
+        opt_cfg = optimizer.get_config() 
+
+        #change the value of learning rate by multiplying decay rate with learning rate to get new learning rate
+        opt_cfg['learning_rate'] = opt_cfg['learning_rate']/decay_rate
+
+        optimizer = optimizer.from_config(opt_cfg)
+        return optimizer
+
     result = []
     pairs, yf, y = next(iter(train_data))
 
-    # val_loss = 0.00
-    # memory = []
+    val_loss = 0.00
+    memory = []
 
     print("Training the model")
     for epoch in range(1, epochs + 1):
-        # optimizer.learning_rate = lr
-        # optimizer.lr = lr
 
         f_loss, a_loss, i_loss = compute_loss(model, documents, pairs, y, yf, training=False)
         print("[%d/%d]  F-loss : %.3f | A-loss : %.3f | I-loss : %.3f" % (epoch, epochs, f_loss, a_loss, i_loss), flush=True)
@@ -272,14 +280,15 @@ if __name__ == "__main__":
             print(str(round(ce,2)) + ", "+ str(round(lr,2)) + ", "+ str(round(ac,2)))
             result.append(ac)
 
-            # if ac > val_loss:
-            #     val_loss = ac
-            #     memory.append(0)
-            # else:
-            #     memory.append(1)
-            #     if memory[-2:] == [1,1]:
-            #         lr = lr/5
-            #         print("Reducing learning rate to %f" % lr, flush=True)
+            if ac > val_loss:
+                val_loss = ac
+                memory.append(1)
+            else:
+                memory.append(1)
+                if memory[-1] == 1:
+                    lr = lr/5
+                    optimizer = optimizer_custom_decay(optimizer, 5)
+                    print("Reducing learning rate to %f" % lr, flush=True)
 
             # model.save_weights(os.path.join("results", method, "%s.ckpt" % method))
 
