@@ -158,7 +158,8 @@ if __name__ == "__main__":
     stdScale = StandardScaler()
     features = stdScale.fit_transform(features)
 
-    documents = features
+    # If features encoding is needed
+    # documents = features
 
     print("Build pairs")
     di2ai_df = pd.DataFrame([di2ai.keys(), di2ai.values()], index=['documents','authors']).T
