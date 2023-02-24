@@ -107,7 +107,7 @@ if __name__ == "__main__":
     if not os.path.isdir(os.path.join("results", method)):
         os.mkdir(os.path.join("results", method))
 
-    authors = sorted([a for a in os.listdir(os.path.join(data_dir)) if os.path.isdir(os.path.join(data_dir, a))])[:10]
+    authors = sorted([a for a in os.listdir(os.path.join(data_dir)) if os.path.isdir(os.path.join(data_dir, a))])
     documents = []
     doc2aut = {}
     id_docs = []
