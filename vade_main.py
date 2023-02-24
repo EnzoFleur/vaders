@@ -253,10 +253,10 @@ if __name__ == "__main__":
             for i in tqdm(range(nb)): 
                 start = (i*split ) 
                 stop = start + split
-                Xt = documents[start:stop]
+                Xt = documents[start:stop][:,0]
                 doc_emb,_ = model.encode_doc(Xt,None, training=False) 
                 out.append(doc_emb)    
-            Xt = documents[((i+1)*split)::]
+            Xt = documents[((i+1)*split)::][:,0]
             doc_emb,_ = model.encode_doc(Xt,None, training=False)                                 
             out.append(doc_emb)
             doc_emb = np.vstack(out)
@@ -308,10 +308,10 @@ if __name__ == "__main__":
     for i in tqdm(range(nb)): 
         start = (i*split ) 
         stop = start + split 
-        Xt = documents[start:stop]
+        Xt = documents[start:stop][:,0]
         doc_emb,_ = model.encode_doc(Xt,None, training=False) 
         out.append(doc_emb)    
-    Xt = documents[((i+1)*split)::]
+    Xt = documents[((i+1)*split)::][:,0]
     doc_emb,_ = model.encode_doc(Xt,None, training=False)                                 
     out.append(doc_emb)
     doc_emb = np.vstack(out)
