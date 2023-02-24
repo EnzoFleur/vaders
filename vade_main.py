@@ -107,7 +107,7 @@ if __name__ == "__main__":
     if not os.path.isdir(os.path.join("results", method)):
         os.mkdir(os.path.join("results", method))
 
-    authors = sorted([a for a in os.listdir(os.path.join(data_dir)) if os.path.isdir(os.path.join(data_dir, a))])[:10]
+    authors = sorted([a for a in os.listdir(os.path.join(data_dir)) if os.path.isdir(os.path.join(data_dir, a))])
     documents = []
     doc2aut = {}
     id_docs = []
@@ -150,7 +150,6 @@ if __name__ == "__main__":
 
     print('Get features')
     features = pd.read_csv(os.path.join("data", dataset, "features", "features.csv"), sep=";")
-    features = features[features["author"].isin(authors)]
     features = features.drop(["author", 'needn\'t', 'couldn\'t', 'hasn\'t', 'mightn\'t', 'you\'ve', 'shan\'t', 'aren',
         'weren\'t', 'mustn', 'shan', 'should\'ve', 'mightn', 'needn', 'hadn\'t',
         'aren\'t', 'hadn', 'that\'ll', '£', '€', '<', '\'', '^', '~'], axis=1).replace({"id":{k+".txt":v for k,v in doc2id.items()}}).sort_values("id", ascending=True)
@@ -220,13 +219,13 @@ if __name__ == "__main__":
     result = []
     pairs, yf, y = next(iter(train_data))
 
-    val_loss = 0.00
-    memory = []
+    # val_loss = 0.00
+    # memory = []
 
     print("Training the model")
     for epoch in range(1, epochs + 1):
-        optimizer.learning_rate = lr
-        optimizer.lr = lr
+        # optimizer.learning_rate = lr
+        # optimizer.lr = lr
 
         f_loss, a_loss, i_loss = compute_loss(model, documents, pairs, y, yf, training=False)
         print("[%d/%d]  F-loss : %.3f | A-loss : %.3f | I-loss : %.3f" % (epoch, epochs, f_loss, a_loss, i_loss), flush=True)
@@ -253,10 +252,10 @@ if __name__ == "__main__":
             for i in tqdm(range(nb)): 
                 start = (i*split ) 
                 stop = start + split
-                Xt = documents[start:stop][:,0]
+                Xt = documents[start:stop]
                 doc_emb,_ = model.encode_doc(Xt,None, training=False) 
                 out.append(doc_emb)    
-            Xt = documents[((i+1)*split)::][:,0]
+            Xt = documents[((i+1)*split)::]
             doc_emb,_ = model.encode_doc(Xt,None, training=False)                                 
             out.append(doc_emb)
             doc_emb = np.vstack(out)
@@ -273,14 +272,14 @@ if __name__ == "__main__":
             print(str(round(ce,2)) + ", "+ str(round(lr,2)) + ", "+ str(round(ac,2)))
             result.append(ac)
 
-            if ac > val_loss:
-                val_loss = ac
-                memory.append(0)
-            else:
-                memory.append(1)
-                if memory[-2:] == [1,1]:
-                    lr = lr/5
-                    print("Reducing learning rate to %f" % lr, flush=True)
+            # if ac > val_loss:
+            #     val_loss = ac
+            #     memory.append(0)
+            # else:
+            #     memory.append(1)
+            #     if memory[-2:] == [1,1]:
+            #         lr = lr/5
+            #         print("Reducing learning rate to %f" % lr, flush=True)
 
             # model.save_weights(os.path.join("results", method, "%s.ckpt" % method))
 
@@ -308,10 +307,10 @@ if __name__ == "__main__":
     for i in tqdm(range(nb)): 
         start = (i*split ) 
         stop = start + split 
-        Xt = documents[start:stop][:,0]
+        Xt = documents[start:stop]
         doc_emb,_ = model.encode_doc(Xt,None, training=False) 
         out.append(doc_emb)    
-    Xt = documents[((i+1)*split)::][:,0]
+    Xt = documents[((i+1)*split)::]
     doc_emb,_ = model.encode_doc(Xt,None, training=False)                                 
     out.append(doc_emb)
     doc_emb = np.vstack(out)
