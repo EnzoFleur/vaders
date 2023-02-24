@@ -107,7 +107,7 @@ if __name__ == "__main__":
     if not os.path.isdir(os.path.join("results", method)):
         os.mkdir(os.path.join("results", method))
 
-    authors = sorted([a for a in os.listdir(os.path.join(data_dir)) if os.path.isdir(os.path.join(data_dir, a))])
+    authors = sorted([a for a in os.listdir(os.path.join(data_dir)) if os.path.isdir(os.path.join(data_dir, a))])[:10]
     documents = []
     doc2aut = {}
     id_docs = []
@@ -150,6 +150,7 @@ if __name__ == "__main__":
 
     print('Get features')
     features = pd.read_csv(os.path.join("data", dataset, "features", "features.csv"), sep=";")
+    features = features[features["author"].isin(authors)]
     features = features.drop(["author", 'needn\'t', 'couldn\'t', 'hasn\'t', 'mightn\'t', 'you\'ve', 'shan\'t', 'aren',
         'weren\'t', 'mustn', 'shan', 'should\'ve', 'mightn', 'needn', 'hadn\'t',
         'aren\'t', 'hadn', 'that\'ll', '£', '€', '<', '\'', '^', '~'], axis=1).replace({"id":{k+".txt":v for k,v in doc2id.items()}}).sort_values("id", ascending=True)
