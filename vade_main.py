@@ -87,7 +87,7 @@ if __name__ == "__main__":
     # ############ Data ################
     # dataset = "gutenberg"
 
-    # encoder="features"
+    # encoder="USE"
     # data_dir = "C:\\Users\\EnzoT\\Documents\\datasets\\gutenberg"
     # res_dir = "C:\\Users\\EnzoT\\Documents\\results"
     # beta=1e-12
