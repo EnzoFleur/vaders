@@ -285,10 +285,10 @@ if __name__ == "__main__":
                 memory.append(1)
             else:
                 memory.append(1)
-                if memory[-1] == 1:
-                    lr = lr/5
-                    optimizer = optimizer_custom_decay(optimizer, 5)
-                    print("Reducing learning rate to %f" % lr, flush=True)
+            if memory[-1] == 1:
+                lr = lr/5
+                optimizer = optimizer_custom_decay(optimizer, 5)
+                print("Reducing learning rate to %f" % lr, flush=True)
 
             # model.save_weights(os.path.join("results", method, "%s.ckpt" % method))
 
