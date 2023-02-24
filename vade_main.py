@@ -82,7 +82,7 @@ if __name__ == "__main__":
     alpha = args.alpha
     negpairs = args.negpairs
     loss = args.loss
-    lr = args.learningrate
+    lrate = args.learningrate
 
     # ############ Data ################
     # dataset = "gutenberg"
@@ -96,10 +96,10 @@ if __name__ == "__main__":
     # negpairs = 10
     # batch_size = 128
     # epochs=100
-    # lr=1e-3
+    # lrate=1e-3
     # name="features"
 
-    if lr == 1e-3:
+    if lrate == 1e-3:
         method = "%s_%s_%s_%6f_%3f_%d_%s" % (loss,encoder, dataset, beta, alpha, negpairs, name)
     else:
         method = "LR01_%s_%s_%s_%6f_%3f_%d_%s" % (loss,encoder, dataset, beta, alpha, negpairs, name)
@@ -212,16 +212,17 @@ if __name__ == "__main__":
 
     print("Building the model")
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lrate)
 
     model = VADER(na,r,doc_r,max_l, encoder=encoder, beta=beta, L=10, alpha=alpha, loss=loss) 
 
-    def optimizer_custom_decay(optimizer, decay_rate):
+    def optimizer_custom_decay(optimizer, epoch):
+        schedule = [1e-3, 1e-4, 5e-5, 5e-5, 3e-5, 3e-5, 1e-5, 1e-5, 1e-5, 1e-5]
         #get the optimizer configuration dictionary
         opt_cfg = optimizer.get_config() 
 
         #change the value of learning rate by multiplying decay rate with learning rate to get new learning rate
-        opt_cfg['learning_rate'] = opt_cfg['learning_rate']/decay_rate
+        opt_cfg['learning_rate'] = opt_cfg['learning_rate']/opt_cfg['learning_rate'] * schedule[epoch-1]
 
         optimizer = optimizer.from_config(opt_cfg)
         return optimizer
@@ -229,8 +230,8 @@ if __name__ == "__main__":
     result = []
     pairs, yf, y = next(iter(train_data))
 
-    val_loss = 0.00
-    memory = []
+    # val_loss = 0.00
+    # memory = []
 
     print("Training the model")
     for epoch in range(1, epochs + 1):
@@ -280,22 +281,14 @@ if __name__ == "__main__":
             print(str(round(ce,2)) + ", "+ str(round(lr,2)) + ", "+ str(round(ac,2)))
             result.append(ac)
 
-            if ac > val_loss:
-                val_loss = ac
-                memory.append(1)
-            else:
-                memory.append(1)
-            if memory[-1] == 1:
-                lr = lr/5
-                optimizer = optimizer_custom_decay(optimizer, 5)
-                print("Reducing learning rate to %f" % lr, flush=True)
+            optimizer = optimizer_custom_decay(optimizer, epoch)
+            print("Reducing learning rate to %f" % lrate, flush=True)
 
             # model.save_weights(os.path.join("results", method, "%s.ckpt" % method))
 
             np.save(os.path.join("results", method, "aut_%s.npy" % method), aut_emb)
             np.save(os.path.join("results", method, "aut_var_%s.npy" % method), aut_var)
             np.save(os.path.join("results", method, "doc_%s.npy" % method), doc_emb)
-
 
     with open(os.path.join("results", method, 'res_%s.txt' % method), 'w') as f:
         for item in result:
