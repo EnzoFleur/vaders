@@ -280,6 +280,7 @@ if __name__ == "__main__":
                 memory.append(1)
                 if memory[-2:] == [1,1]:
                     lr = lr/5
+                    print("Reducing learning rate to %f" % lr, flush=True)
 
             # model.save_weights(os.path.join("results", method, "%s.ckpt" % method))
 
