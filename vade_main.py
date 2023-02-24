@@ -223,6 +223,7 @@ if __name__ == "__main__":
 
         #change the value of learning rate by multiplying decay rate with learning rate to get new learning rate
         opt_cfg['learning_rate'] = opt_cfg['learning_rate']/opt_cfg['learning_rate'] * schedule[epoch-1]
+        print("Reducing learning rate to %f" % opt_cfg['learning_rate'], flush=True)
 
         optimizer = optimizer.from_config(opt_cfg)
         return optimizer
@@ -281,8 +282,7 @@ if __name__ == "__main__":
             print(str(round(ce,2)) + ", "+ str(round(lr,2)) + ", "+ str(round(ac,2)))
             result.append(ac)
 
-            optimizer = optimizer_custom_decay(optimizer, epoch)
-            print("Reducing learning rate to %f" % lrate, flush=True)
+            # optimizer = optimizer_custom_decay(optimizer, epoch)
 
             # model.save_weights(os.path.join("results", method, "%s.ckpt" % method))
 
