@@ -416,17 +416,18 @@ def compute_loss(model, documents, pairs, y, yf, training=True):
 
     info_loss = BETA * KL_loss_aut_emb
 
-    if not training:
-        return feature_loss, author_loss, info_loss
+    loss = feature_loss+ author_loss+ info_loss
 
-    return feature_loss + author_loss + info_loss
+    return loss, feature_loss, author_loss, info_loss
     
 def compute_apply_gradients(model, documents, pairs, y, yf, optimizer):
     
     with tf.GradientTape() as tape:
 
-        loss = compute_loss(model, documents, pairs, y, yf)
+        loss, f_loss, a_loss, i_loss = compute_loss(model, documents, pairs, y, yf)
         
     gradients = tape.gradient(loss, model.trainable_variables)
     
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
+
+    return f_loss, a_loss, i_loss

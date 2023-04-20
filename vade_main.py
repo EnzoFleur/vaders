@@ -238,14 +238,16 @@ if __name__ == "__main__":
 
     print("Training the model")
     for epoch in range(1, epochs + 1):
-
-        f_loss, a_loss, i_loss = compute_loss(model, documents, pairs, y, yf, training=False)
-        print("[%d/%d] in %s F-loss : %.3f | A-loss : %.3f | I-loss : %.3f" % (str(datetime.now()-start_time), epoch, epochs, f_loss, a_loss, i_loss), flush=True)
         
         start_time = datetime.now()
+        f_losses, a_losses, i_losses = 0,0,0
         for pairs, yf, y in tqdm(train_data):
-            compute_apply_gradients(model, documents, pairs, y, yf, optimizer)
-        end_time = time.time()
+            f_loss, a_loss, i_loss = compute_apply_gradients(model, documents, pairs, y, yf, optimizer)
+            f_losses += f_loss
+            a_losses += a_loss
+            i_losses += i_loss
+
+        print("[%d/%d] in %s F-loss : %.3f | A-loss : %.3f | I-loss : %.3f" % (str(datetime.now()-start_time), epoch, epochs, f_losses/len(pairs), a_loss/len(pairs), i_loss/len(pairs)), flush=True)
 
         if epoch % 1 == 0:
             aut_emb = []
