@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import time
+from datetime import datetime
 
 import os
 import re
@@ -216,31 +217,32 @@ if __name__ == "__main__":
 
     model = VADER(na,r,doc_r,max_l, encoder=encoder, beta=beta, L=10, alpha=alpha, loss=loss) 
 
-    def optimizer_custom_decay(optimizer, epoch):
-        schedule = [1e-3, 1e-4, 5e-5, 5e-5, 3e-5, 3e-5, 1e-5, 1e-5, 1e-5, 1e-5]
+    def optimizer_custom_decay(optimizer, step):
+        schedule = [1e-3, 5e-4, 1e-4, 5e-5, 3e-5, 1e-5]
         #get the optimizer configuration dictionary
         opt_cfg = optimizer.get_config() 
 
         #change the value of learning rate by multiplying decay rate with learning rate to get new learning rate
-        opt_cfg['learning_rate'] = opt_cfg['learning_rate']/opt_cfg['learning_rate'] * schedule[epoch-1]
+        opt_cfg['learning_rate'] = opt_cfg['learning_rate']/opt_cfg['learning_rate'] * schedule[min(step, len(schedule))]
         print("Reducing learning rate to %f" % opt_cfg['learning_rate'], flush=True)
 
         optimizer = optimizer.from_config(opt_cfg)
         return optimizer
-
+            
     result = []
     pairs, yf, y = next(iter(train_data))
 
-    # val_loss = 0.00
-    # memory = []
+    val_loss = 0.00
+    step=0
+    memory = []
 
     print("Training the model")
     for epoch in range(1, epochs + 1):
 
         f_loss, a_loss, i_loss = compute_loss(model, documents, pairs, y, yf, training=False)
-        print("[%d/%d]  F-loss : %.3f | A-loss : %.3f | I-loss : %.3f" % (epoch, epochs, f_loss, a_loss, i_loss), flush=True)
+        print("[%d/%d] in %s F-loss : %.3f | A-loss : %.3f | I-loss : %.3f" % (str(datetime.now()-start_time), epoch, epochs, f_loss, a_loss, i_loss), flush=True)
         
-        start_time = time.time()
+        start_time = datetime.now()
         for pairs, yf, y in tqdm(train_data):
             compute_apply_gradients(model, documents, pairs, y, yf, optimizer)
         end_time = time.time()
@@ -282,7 +284,11 @@ if __name__ == "__main__":
             print(str(round(ce,2)) + ", "+ str(round(lr,2)) + ", "+ str(round(ac,2)))
             result.append(ac)
 
-            # optimizer = optimizer_custom_decay(optimizer, epoch)
+            memory.append(ac)
+            val_loss = max(memory)
+            if val_loss not in memory[-2:]:
+                step+=1
+                optimizer = optimizer_custom_decay(optimizer, step)
 
             # model.save_weights(os.path.join("results", method, "%s.ckpt" % method))
 
