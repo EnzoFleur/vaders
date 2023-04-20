@@ -247,7 +247,7 @@ if __name__ == "__main__":
             a_losses += a_loss
             i_losses += i_loss
 
-        print("[%d/%d] in %s F-loss : %.3f | A-loss : %.3f | I-loss : %.3f" % (str(datetime.now()-start_time), epoch, epochs, f_losses/len(pairs), a_loss/len(pairs), i_loss/len(pairs)), flush=True)
+        print("[%d/%d] in %s F-loss : %.3f | A-loss : %.3f | I-loss : %.3f" % (epoch, epochs, str(datetime.now()-start_time), f_losses/len(pairs), a_loss/len(pairs), i_loss/len(pairs)), flush=True)
 
         if epoch % 1 == 0:
             aut_emb = []
