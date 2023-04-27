@@ -218,7 +218,7 @@ if __name__ == "__main__":
     model = VADER(na,r,doc_r,max_l, encoder=encoder, beta=beta, L=10, alpha=alpha, loss=loss) 
 
     def optimizer_custom_decay(optimizer, step):
-        schedule = [1e-3, 5e-4, 1e-4, 5e-5, 3e-5, 1e-5]
+        schedule = [1e-3, 5e-4, 2e-4, 5e-5, 3e-5, 1e-5]
         #get the optimizer configuration dictionary
         opt_cfg = optimizer.get_config() 
 
@@ -294,9 +294,9 @@ if __name__ == "__main__":
 
             # model.save_weights(os.path.join("results", method, "%s.ckpt" % method))
 
-            np.save(os.path.join("results", method, "aut_%s.npy" % method), aut_emb)
-            np.save(os.path.join("results", method, "aut_var_%s.npy" % method), aut_var)
-            np.save(os.path.join("results", method, "doc_%s.npy" % method), doc_emb)
+            np.save(os.path.join("results", method, "aut_%s_%d.npy" % (method, epoch)), aut_emb)
+            np.save(os.path.join("results", method, "aut_var_%s_%d.npy" % (method, epoch)), aut_var)
+            np.save(os.path.join("results", method, "doc_%s_%d.npy" % (method, epoch)), doc_emb)
 
     with open(os.path.join("results", method, 'res_%s.txt' % method), 'w') as f:
         for item in result:
@@ -346,4 +346,5 @@ if __name__ == "__main__":
     features = pd.read_csv(os.path.join("data", dataset, "features", "features.csv"), sep=";")
     res_df = style_embedding_evaluation(aut_emb, features.groupby("author").mean().reset_index(), n_fold=10)
     res_df.to_csv(os.path.join("results", method, "style_%s.csv" % method), sep=";")
+    print(res_df)
     # res_df = style_embedding_evaluation(doc_embd, features.drop(['author', 'id'], axis=1), n_fold=2)
