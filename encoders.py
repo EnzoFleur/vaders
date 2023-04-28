@@ -405,7 +405,7 @@ def compute_loss(model, documents, pairs, y, yf, training=True):
     # feature_loss *= model.alpha/model.L * tf.stop_gradient(author_loss)/tf.stop_gradient(feature_loss)
     feature_loss *= model.alpha/model.L
 
-    author_loss *= (1-model.alpha)/model.L * tf.stop_gradient(feature_loss)/tf.stop_gradient(author_loss)
+    author_loss *= (1-model.alpha)/model.L
 
     ## Info Loss ####
 
@@ -418,7 +418,7 @@ def compute_loss(model, documents, pairs, y, yf, training=True):
 
     info_loss = BETA * KL_loss_aut_emb
 
-    loss = feature_loss+ author_loss+ info_loss
+    loss = feature_loss+ author_loss* tf.stop_gradient(feature_loss)/tf.stop_gradient(author_loss)+ info_loss
 
     return loss, feature_loss, author_loss, info_loss
     
