@@ -432,4 +432,4 @@ def compute_apply_gradients(model, documents, pairs, y, yf, optimizer):
     
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
-    return f_loss, a_loss, i_loss
+    return f_loss, a_loss*f_loss/a_loss, i_loss
